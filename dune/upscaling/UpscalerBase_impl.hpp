@@ -136,7 +136,7 @@ namespace Dune
 	twodim_hack_ = twodim_hack;
 
 	// Faking some parameters depending on bc type.
-        bool periodic_ext = (bctype_ == Periodic);
+        bool periodic_ext = false;
         bool turn_normals = false;
         bool clip_z = (bctype_ == Periodic);
         bool unique_bids = (bctype_ == Linear || bctype_ == Periodic);
