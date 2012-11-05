@@ -47,7 +47,8 @@ namespace Dune
        @brief A class for doing single phase (permeability) upscaling.
        @author Atgeirr F. Rasmussen <atgeirr@sintef.no>
     */
-    class SinglePhaseUpscaler : public UpscalerBase<UpscalingTraitsBasic>
+    //class SinglePhaseUpscaler : public UpscalerBase<UpscalingTraitsBasic>
+    class SinglePhaseUpscaler : public UpscalerBase<UpscalingTraitsMortar>
     {
     };
 

@@ -40,6 +40,7 @@
 namespace Dune
 {
     typedef SimulatorTraits<Isotropic, Explicit> UpscalingTraitsBasic;
+    typedef SimulatorTraitsMortar<Isotropic, Explicit> UpscalingTraitsMortar;
     //typedef SimulatorTraits<Isotropic, Implicit> UpscalingTraitsBasicImplicit;
     typedef SimulatorTraits<Anisotropic, Explicit> UpscalingTraitsAnisoRelperm;
 
