@@ -14,7 +14,8 @@ upscale_cond					\
 upscale_perm					\
 upscale_relperm					\
 upscale_relpermvisc                             \
-upscale_steadystate_implicit
+upscale_steadystate_implicit			\
+upscale_perm_mortar_test					
 
 
 cpchop_SOURCES = cpchop.cpp
@@ -40,6 +41,9 @@ upscale_relperm_SOURCES = upscale_relperm.cpp
 upscale_relpermvisc_SOURCES = upscale_relpermvisc.cpp
 
 upscale_steadystate_implicit_SOURCES = upscale_steadystate_implicit.cpp
+
+upscale_perm_mortar_test_SOURCES = upscale_perm_mortar_test.cpp
+
 
 AM_CPPFLAGS += $(DUNEMPICPPFLAGS) $(BOOST_CPPFLAGS) $(SUPERLU_CPPFLAGS)
 AM_LDFLAGS  += $(DUNEMPILDFLAGS) $(BOOST_LDFLAGS) $(SUPERLU_LDFLAGS)
