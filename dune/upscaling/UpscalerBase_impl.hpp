@@ -39,6 +39,8 @@
 #include <dune/porsol/common/setupBoundaryConditions.hpp>
 #include <dune/porsol/common/ReservoirPropertyTracerFluid.hpp>
 
+#include <dune/upscaling/UpscalingTraits.hpp>
+
 namespace Dune
 {
 
@@ -136,7 +138,40 @@ namespace Dune
 	twodim_hack_ = twodim_hack;
 
 	// Faking some parameters depending on bc type.
-        bool periodic_ext = false;
+        bool periodic_ext = (bctype_ == Periodic);
+        bool turn_normals = false;
+        bool clip_z = (bctype_ == Periodic);
+        bool unique_bids = (bctype_ == Linear || bctype_ == Periodic);
+        std::string rock_list("no_list");
+	setupGridAndPropsEclipse(parser, z_tolerance,
+                                 periodic_ext, turn_normals, clip_z, unique_bids,
+                                 perm_threshold, rock_list,
+                                 useJ<ResProp>(), 1.0, 0.0,
+                                 grid_, res_prop_);
+	ginterf_.init(grid_);
+    }
+
+
+
+    // Specialize implementation of init() if Traits = UpscalingTraitsMortar 
+    template <>
+    inline void UpscalerBase<UpscalingTraitsMortar>::init(const Opm::EclipseGridParser& parser,
+								     BoundaryConditionType bctype,
+								     double perm_threshold,
+								     double z_tolerance,
+								     double residual_tolerance,
+								     int linsolver_verbosity,
+								     int linsolver_type,
+								     bool twodim_hack)
+    {
+	bctype_ = bctype;
+	residual_tolerance_ = residual_tolerance;
+	linsolver_verbosity_ = linsolver_verbosity;
+        linsolver_type_ = linsolver_type;
+	twodim_hack_ = twodim_hack;
+
+	// Faking some parameters depending on bc type.
+        bool periodic_ext = false; // Don't want to add extra layer in x/y direction
         bool turn_normals = false;
         bool clip_z = (bctype_ == Periodic);
         bool unique_bids = (bctype_ == Linear || bctype_ == Periodic);
@@ -177,6 +212,22 @@ namespace Dune
             } else {
                 grid_.setUniqueBoundaryIds(false);
             }
+        }
+    }
+  
+
+
+    // Specialize implementation of setBoundaryConditionType() if Traits = UpscalingTraitsMortar 
+    template <>
+    inline void
+    UpscalerBase<UpscalingTraitsMortar>::setBoundaryConditionType(BoundaryConditionType type)
+    {
+
+        bctype_ = type;
+        if (type == Periodic || type == Linear) {
+	    grid_.setUniqueBoundaryIds(true);
+        } else {
+	    grid_.setUniqueBoundaryIds(false);
         }
     }
 
