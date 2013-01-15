@@ -18,8 +18,11 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/** @file upscale_perm.C
+/** @file upscale_perm_mortar_test.C
  *  @brief Upscales permeability
+ *
+ *  This file is a copy of upscale_perm.cpp, but with some changes to handle
+ *  the mortar implementation for periodic boundary conditions.
  *  
  *  Upscales permeability for a given Eclipse-model. 
  *  Upscaling is performed for periodic, linear and
