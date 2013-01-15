@@ -1,3 +1,18 @@
+This repository is a fork of OPM/opm-upscaling. It contains additional 
+test functions to test the mortar approach implemented in laods/opm-porsol
+(branch mortar). This approach is done as a part of my Master's thesis in
+Industrial Mathematics at NTNU:
+
+  "Numerical Aspects of Flow Based Local Upscaling" (jan. 2013)
+
+opm-upscaling is an OPM module and depends on DUNE 2.0 and the following
+revisions of two OPM modules:
+
+  - opm-core @9571b30556
+  - dune-cornerpoint @7de40f2a9a
+  - laods/opm-porsol (branch mortar)
+
+
 Preparing the Sources
 =========================
 
