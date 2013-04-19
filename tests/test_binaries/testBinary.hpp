@@ -107,12 +107,21 @@ namespace Opm {
 	// Test element by element
 	for (int row=0; row<refSoln.numRows(); ++row) {
 	    for (int col=0; col<refSoln.numCols(); ++col) {
-		double absRelDiff = abs(refSoln(row,col) - newSoln(row,col)) / refSoln(row,col);
-		if (absRelDiff > relTol) {
-		    cout << "Calculated solution not equal to reference solution within "
-			 << "an relative tolerance of " << relTol << ". "  << endl
+		bool equal = true;
+		if (abs(refSoln(row,col)) < 1e-14) { // If refSoln close to zero do simple difference test
+		    double absDiff = abs(refSoln(row,col) - newSoln(row,col));
+		    if (absDiff > 1e-6) equal = false;
+		}
+		else { // If refSoln != 0 do relative difference test
+		    double absRelDiff = abs( (refSoln(row,col) - newSoln(row,col)) / refSoln(row,col) );
+		    if (absRelDiff > relTol) equal = false;
+		}
+		if (!equal) {
+		    cout << endl << "Verification error: Calculated solution not equal to reference solution "
+			 << "within a relative tolerance of " << relTol
+			 << " (at position " << row << ", " << col << ")." << endl
 			 << "Calculated solution:" << endl
-			 << newSoln << endl
+			 << newSoln
 			 << "Reference solution:" << endl
 			 << refSoln << endl;
 		    return false;
