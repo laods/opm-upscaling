@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(upscale_perm_fixed_PeriodicTilted)
 
     // Run executable
     system(runCommand.str().c_str());
-	
+
     // Store solutions in Matrix object
     Opm::Matrix newSoln = Opm::readResultFile(outputPath, rows, cols);
     Opm::Matrix refSoln = Opm::readResultFile(refSolnPath, rows, cols);

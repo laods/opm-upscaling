@@ -185,6 +185,8 @@ opm_compile_satellites (${project} examples "" "")
 enable_testing ()
 include (CTest)
 
+add_test(python ${PROJECT_SOURCE_DIR}/tests/python_scripts/test.py)
+
 # make datafiles necessary for tests available in output directory
 opm_data (tests datafiles "${tests_DIR}")
 opm_compile_satellites (${project} tests "" "${tests_REGEXP}")
