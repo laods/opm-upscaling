@@ -109,7 +109,7 @@ bool matrixAlmostEqual(Matrix refSoln, Matrix newSoln, double relTol) {
                 if (absDiff > 1e-6) return false;
             }
             else { // If refSoln != 0 do relative difference test
-                double absRelDiff = abs( (refSoln(row,col) - newSoln(row,col)) / refSoln(row,col) );
+                double absRelDiff = abs( (refSoln(row,col) - newSoln(row,col)) );
                 if (absRelDiff > relTol) return false;
             }
         }

@@ -22,7 +22,7 @@
 
 
 # Set relative tolerance to be used for testing
-set(relTol 1e-4)
+set(tol 1e-2)
 
 # Define some paths
 set(RESULT_PATH ${PROJECT_BINARY_DIR}/tests/results/)
@@ -43,7 +43,7 @@ file(MAKE_DIRECTORY ${RESULT_PATH})
 #   - rows: Number of rows in result file that is to be compared
 # This macro assumes that ${gridname}.grdecl is found in directory ${INPUT_DATA_PATH}grids/
 # and that upscale_perm_BC${bcs}_${gridname}.txt is found in ${INPUT_DATA_PATH}reference_solutions
-macro (add_test_upscale_perm gridname bcs rows)
+macro (add_test_upscale_perm gridname bcs)
   # Add test that runs upscale_perm and outputs the results to file
   add_test(run_upscale_perm_BC${bcs}_${gridname}
 	   ${PROJECT_BINARY_DIR}/bin/upscale_perm
@@ -52,19 +52,18 @@ macro (add_test_upscale_perm gridname bcs rows)
 	   ${INPUT_DATA_PATH}grids/${gridname}.grdecl)
   # Add test that compare the results from the previous test with a reference solution
   add_test(compare_upscale_perm_BC${bcs}_${gridname}
-           ${PROJECT_BINARY_DIR}/bin/compare_upscaling_results
+           ${PROJECT_BINARY_DIR}/bin/compare_tensor_results
            ${INPUT_DATA_PATH}reference_solutions/upscale_perm_BC${bcs}_${gridname}.txt
            ${RESULT_PATH}upscale_perm_BC${bcs}_${gridname}.txt
-           ${relTol}
-           ${rows} 3)
+           ${tol})
   # Set dependency of the two tests
   set_tests_properties(compare_upscale_perm_BC${bcs}_${gridname} PROPERTIES DEPENDS
                        run_upscale_perm_BC${bcs}_${gridname})
 endmacro (add_test_upscale_perm gridname bcs)
 
 # Add tests for different models
-add_test_upscale_perm(PeriodicTilted p 3)
-add_test_upscale_perm(27cellsAniso flp 9)
-add_test_upscale_perm(27cellsIso flp 9)
-add_test_upscale_perm(EightCells fl 6)
-add_test_upscale_perm(hummockyChopped flp 9)
+add_test_upscale_perm(PeriodicTilted p)
+add_test_upscale_perm(27cellsAniso flp)
+add_test_upscale_perm(27cellsIso flp)
+add_test_upscale_perm(EightCells fl)
+add_test_upscale_perm(hummockyChopped flp)
