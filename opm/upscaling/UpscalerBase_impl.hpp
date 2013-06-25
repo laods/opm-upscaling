@@ -233,15 +233,15 @@ namespace Opm
 	permtensor_t upscaled_K(3, 3, (double*)0);
 	for (int pdd = 0; pdd < Dimension; ++pdd) {
 	    setupUpscalingConditions(ginterf_, bctype_, pdd, 1.0, 1.0, twodim_hack_, bcond_);
-	    if (pdd == 0) {
+	    //if (pdd == 0) {
 		// Only on first iteration, since we do not change the
 		// structure of the system, the way the flow solver is
 		// implemented.
 		flow_solver_.init(ginterf_, res_prop_, gravity, bcond_);
-	    }
+	    //}
 
 	    // Run pressure solver.
-            bool same_matrix = (bctype_ != Fixed) && (pdd != 0);
+            bool same_matrix = (bctype_ != Fixed) && (bctype_ != Periodic) && (pdd != 0); // laods: Modified periodic
 	    flow_solver_.solve(fluid, sat, bcond_, src, residual_tolerance_,
                                linsolver_verbosity_, 
                                linsolver_type_, same_matrix,
