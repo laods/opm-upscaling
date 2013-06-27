@@ -88,6 +88,8 @@
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
 
+#include <dune/grid/io/file/vtk/vtkwriter.hh>
+
 using namespace Opm;
 using namespace std;
 
@@ -119,6 +121,8 @@ void usage()
         "                                water relperm. If not supplied, output will only" << endl <<
         "                                go to the terminal (standard out)." << endl <<
         "-outputOil <string>          -- ditto" << endl <<
+        "-output_vtk <bool>           -- If set to true, then the saturation distribution for all" << endl <<
+        "                                points are written to a vtk file. Deafult false." << endl <<
         "-interpolate <integer>       -- If supplied and > 1, the output data points will be" << endl << 
  	"                                interpolated using monotone cubic interpolation" << endl << 
  	"                                on a uniform grid with the specified number of" << endl << 
@@ -235,6 +239,7 @@ int main(int varnum, char** vararg)
     options.insert(make_pair("linsolver_tolerance", "1e-12"));  // residual tolerance for linear solver
     options.insert(make_pair("linsolver_verbosity", "0"));     // verbosity level for linear solver
     options.insert(make_pair("linsolver_type",      "1"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG
+    options.insert(make_pair("output_vtk",          "false")); // Whether to print saturation distribution to a vtk file or not
     
     /* Check first if there is anything on the command line to look for */
     if (varnum == 1) {
@@ -355,7 +360,10 @@ int main(int varnum, char** vararg)
     if (interpolationPoints > 1) {
         doInterpolate = true;
     }
- 
+    
+    // Output saturation distribution to vtk file?
+    const bool output_vtk = (options["output_vtk"] == "true");
+    
 
     /***********************************************************************
      * Step 2:
@@ -1231,6 +1239,15 @@ int main(int varnum, char** vararg)
     }   
 #endif
 
+    // Construct object to write saturation distribution to vtk file.
+    Dune::VTKWriter<SinglePhaseUpscaler::GridType::LeafGridView> vtkwriter(upscaler.grid().leafView());
+    
+    // Vector to store saturation distribution at capillary equilibirum. To be used for output to vtk file.
+    std::vector< std::vector<double> > saturationVector;
+    if (output_vtk) {
+        saturationVector.resize(points, std::vector<double>(ecl_idx.size(), 0.0));
+    }
+
     clock_t start_upscale_wallclock = clock();
 
     double waterVolumeLF; // water volume for the whole model
@@ -1316,6 +1333,8 @@ int main(int varnum, char** vararg)
                                     permzs[cell_idx];
                             }
                         }
+                        if (output_vtk) 
+                            saturationVector[pointidx][cell_idx] = saturationCell;
                     }
                     phasePermValues[cell_idx] = cellPhasePerm;
                     phasePermValuesDiag[cell_idx] = cellPhasePermDiag;
@@ -1435,6 +1454,27 @@ int main(int varnum, char** vararg)
     double avg_upscaling_time_pr_point = timeused_upscale_wallclock / (2.0*(double)points);
 #endif
 
+    // Write saturation distribution to vtk file
+    if (output_vtk) {
+        for (int i=0; i<points; ++i) {
+            std::string sat_string = std::string("Sw (upscaled: ") 
+            + boost::lexical_cast<std::string>(WaterSaturation[i])
+            + std::string(")");
+            vtkwriter.addCellData(saturationVector[i], sat_string);
+        }
+        std::string eclipse_basename = std::string(ECLIPSEFILENAME);
+        // If '/' is found remove substring
+        std::string::size_type last_slash = eclipse_basename.find_last_of('/');
+        if (last_slash != std::string::npos)
+            eclipse_basename = eclipse_basename.substr(last_slash + 1);
+        // Remove extension
+        std::string::size_type last_dot = eclipse_basename.find_last_of('.');
+        eclipse_basename = eclipse_basename.substr(0, last_dot);
+        std::string vtk_name = std::string("VL_saturation_") + eclipse_basename;
+        vtkwriter.write(vtk_name);
+    }
+
+    
     /* 
      * Step Xc: Make relperm values from phaseperms
      *          (only master node can do this)
