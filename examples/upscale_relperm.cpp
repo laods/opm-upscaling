@@ -78,6 +78,8 @@
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
 
+#include <dune/grid/io/file/vtk/vtkwriter.hh>
+
 using namespace Opm;
 using namespace std;
 
@@ -114,6 +116,8 @@ void usage()
         "  -output <string>             -- filename for where to write upscaled values." << endl <<
         "                                  If not supplied, output will only go to " << endl <<
         "                                  the terminal (standard out)." << endl <<
+        "  -output_vtk <bool>           -- If set to true, then the saturation distribution for all" << endl <<
+        "                                  points are written to a vtk file. Deafult false." << endl <<
         "  -interpolate <integer>       -- If supplied, the output data points will be" << endl <<
         "                                  interpolated using monotone cubic interpolation" << endl <<
         "                                  on a uniform grid with the specified number of" << endl <<
@@ -256,6 +260,7 @@ int main(int varnum, char** vararg)
    options.insert(make_pair("doEclipseCheck",      "true")); // Check if minimum relpermvalues in input are zero (specify critical saturations)
    options.insert(make_pair("critRelpermThresh",   "1e-6")); // Threshold for setting minimum relperm to 0 (thus specify critical saturations)
    options.insert(make_pair("linsolver_smooth_steps", "2")); // Number of pre and postsmoothing steps for AMG
+   options.insert(make_pair("output_vtk",          "false")); // Whether to print saturation distribution to a vtk file or not
 
    // Conversion factor, multiply mD numbers with this to get m² numbers
    const double milliDarcyToSqMetre = 9.869233e-16;
@@ -368,6 +373,9 @@ int main(int varnum, char** vararg)
        doInterpolate = true;
    }
    
+   // Output saturation distribution to vtk file?
+   const bool output_vtk = (options["output_vtk"] == "true");
+
    /***********************************************************************
     * Step 2:
     * Load geometry and data from Eclipse file
@@ -1370,7 +1378,15 @@ int main(int varnum, char** vararg)
    }   
 #endif
 
+   // Construct object to write saturation distribution to vtk file.
+   Dune::VTKWriter<SinglePhaseUpscaler::GridType::LeafGridView> vtkwriter(upscaler.grid().leafView());
 
+   // Vector to store saturation distribution at capillary equilibirum. To be used for output to vtk file.
+   std::vector< std::vector<double> > saturationVector;
+   if (output_vtk) {
+       saturationVector.resize(points, std::vector<double>(ecl_idx.size(), 0.0));
+   }
+   
    clock_t start_upscale_wallclock = clock();
 
    double waterVolumeLF;
@@ -1430,6 +1446,9 @@ int main(int varnum, char** vararg)
                            = InvJfunctions[int(satnums[cell_idx])-1].evaluate(Jvalue);
                        waterVolumeLF += waterSaturationCell * cellPoreVolumes[cell_idx];
                        
+                       if (output_vtk) 
+                           saturationVector[pointidx][cell_idx] = waterSaturationCell;
+                       
                        // Compute cell relative permeability. We use a lower cutoff-value as we
                        // easily divide by zero here.  When water saturation is
                        // zero, we get 'inf', which is circumvented by the cutoff value.
@@ -1446,6 +1465,9 @@ int main(int varnum, char** vararg)
                        double waterSaturationCell = SwPcfunctions[int(satnums[cell_idx])-1].evaluate(PtestvalueCell);
                        //cout << PtestvalueCell << "\t" << waterSaturationCell << endl;
                        waterVolumeLF += waterSaturationCell * cellPoreVolumes[cell_idx];
+                       
+                       if (output_vtk) 
+                           saturationVector[pointidx][cell_idx] = waterSaturationCell;
                        
                        cellPhasePermDiag[0] = Krxfunctions[int(satnums[cell_idx])-1].evaluate(waterSaturationCell) * 
                            permxs[cell_idx];
@@ -1579,6 +1601,26 @@ int main(int varnum, char** vararg)
    clock_t finish_upscale_wallclock = clock();
    timeused_upscale_wallclock = (double(finish_upscale_wallclock)-double(start_upscale_wallclock))/CLOCKS_PER_SEC;
 
+   // Write saturation distribution to vtk file
+   if (output_vtk) {
+       for (int i=0; i<points; ++i) {
+           std::string sat_string = std::string("Sw (upscaled: ") 
+                                    + boost::lexical_cast<std::string>(WaterSaturation[i])
+                                    + std::string(")");
+           vtkwriter.addCellData(saturationVector[i], sat_string);
+       }
+       std::string eclipse_basename = std::string(ECLIPSEFILENAME);
+       // If '/' is found remove substring
+       std::string::size_type last_slash = eclipse_basename.find_last_of('/');
+       if (last_slash != std::string::npos)
+           eclipse_basename = eclipse_basename.substr(last_slash + 1);
+       // Remove extension
+       std::string::size_type last_dot = eclipse_basename.find_last_of('.');
+       eclipse_basename = eclipse_basename.substr(0, last_dot);
+       std::string vtk_name = std::string("CE_saturation_") + eclipse_basename;
+       vtkwriter.write(vtk_name);
+   }
+   
 #ifdef HAVE_MPI   
    /* Step 8b: Transfer all computed data to master node.
       Master node should post a receive for all values missing,
