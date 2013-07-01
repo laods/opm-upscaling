@@ -176,7 +176,7 @@ namespace Opm
         if (flow_direction == 0) {
             this->flow_solver_.init(this->ginterf_, this->res_prop_, gravity, this->bcond_);
         }
-        transport_solver_.initObj(this->ginterf_, this->res_prop_, this->bcond_);
+        transport_solver_.initObj(this->ginterf_, this->res_prop_, this->bcond_, boundary_saturation);
 
         // Run pressure solver.
         this->flow_solver_.solve(this->res_prop_, saturation, this->bcond_, src,
@@ -225,9 +225,10 @@ namespace Opm
                                    this->flow_solver_.getSolution(),
                                    saturation,
                                    std::string("output-steadystate")
-                                   + '-' + boost::lexical_cast<std::string>(count)
-                                   + '-' + boost::lexical_cast<std::string>(flow_direction)
-                                   + '-' + boost::lexical_cast<std::string>(it_count));
+                                   + std::string("-Sw_init") + boost::lexical_cast<std::string>(boundary_saturation)
+                                   + std::string("-dP") + boost::lexical_cast<std::string>(pressure_drop)
+                                   + std::string("-PDD") + boost::lexical_cast<std::string>(flow_direction)
+                                   + std::string("-step") + boost::lexical_cast<std::string>(it_count));
                 }
                 if (output_ecl_) {
                     const char* fd = "xyz";
