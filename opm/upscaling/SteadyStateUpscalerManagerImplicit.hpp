@@ -201,6 +201,7 @@ namespace Opm
             // Initialize upscaler.
             Upscaler upscaler;
             upscaler.init(param);
+	    //upscaler.printBoundaryInfo();
 
             // First, compute an upscaled permeability.
             typedef typename Upscaler::permtensor_t permtensor_t;

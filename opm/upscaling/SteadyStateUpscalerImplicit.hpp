@@ -97,6 +97,8 @@ namespace Opm
 
         void setToCapillaryLimit(double average_s, std::vector<double>& s) const;
 
+	/// Print boundary information
+	void printBoundaryInfo() const;
 
     protected:
         // ------- Typedefs -------

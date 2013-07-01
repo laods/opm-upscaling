@@ -454,7 +454,26 @@ namespace Opm
         oil_inout = std::make_pair(side1_flux_oil, side2_flux_oil);
     }
 
+    template <class Traits>
+    void SteadyStateUpscalerImplicit<Traits>::printBoundaryInfo() const
+    {
+	std::cout << "Boundary face info:" << std::endl;
+	typedef typename GridInterface::CellIterator CellIter;
+        typedef typename CellIter::FaceIterator FaceIter;
+	for (CellIter c = this->ginterf_.cellbegin(); c != this->ginterf_.cellend(); ++c) {
+            for (FaceIter f = c->facebegin(); f != c->faceend(); ++f) {
+		if (f->boundary()) {
+		    std::cout << "Face #" << f->index() 
+			      << ", Centroid: ["
+			      << f->centroid()[0] << ", "  
+			      << f->centroid()[1] << ", "  
+			      << f->centroid()[2] << "]"
+			      << ", boundary ID: " << f->boundaryId() << std::endl;
+		}   
+	    }
+	}
 
+    }
 
 
 } // namespace Opm
