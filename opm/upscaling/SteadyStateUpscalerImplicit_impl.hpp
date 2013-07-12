@@ -259,6 +259,29 @@ namespace Opm
                     boost::posix_time::ptime ecl_curdate = ecl_startdate + boost::posix_time::seconds(int(ecl_time));
                     Opm::writeECLData(*grid_adapter_.c_grid(), datamap, it_count, ecl_time, ecl_curdate, "./", basename);
                 }
+                if (true) { // Print frac flow inlet cells
+                    int num_inlet_faces = 0;
+                    double average_frac_flow = 0.0;
+                    double min_frac_flow = 1.0;
+                    double max_frac_flow = 0.0;
+                    typedef typename CellIter::FaceIterator FaceIter;
+                    for (CellIter c = this->ginterf_.cellbegin(); c != this->ginterf_.cellend(); ++c) {
+                        for (FaceIter f = c->facebegin(); f != c->faceend(); ++f) {
+                            if (f->boundary() && f->localIndex() == flow_direction*2) {
+                                ++num_inlet_faces;
+                                double frac_flow = this->res_prop_.fractionalFlow(c->index(), saturation[c->index()]);
+                                average_frac_flow += frac_flow;
+                                min_frac_flow = std::min(min_frac_flow, frac_flow);
+                                max_frac_flow = std::max(max_frac_flow, frac_flow);
+                                std::cout << "Frac flow water: " << frac_flow << " (face centroid: " << f->centroid() << ")" << std::endl;
+                            }
+                        }
+                    }
+                    average_frac_flow = average_frac_flow/num_inlet_faces;
+                    std::cout << "Average frac flow (NOT volume weighted): " << average_frac_flow << std::endl;
+                    std::cout << "Min frac flow: " << min_frac_flow << ", max frac flow: " << max_frac_flow << std::endl;
+                }
+                    
                 // Comparing old to new.
                 int num_cells = saturation.size();
                 double maxdiff = 0.0;
