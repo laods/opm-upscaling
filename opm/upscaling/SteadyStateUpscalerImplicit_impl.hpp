@@ -185,10 +185,10 @@ namespace Opm
         setupUpscalingConditions(this->ginterf_, this->bctype_, flow_direction,
                                  pressure_drop, boundary_saturation, this->twodim_hack_, this->bcond_);
 
-        // Set up solvers.
-        if (flow_direction == 0) {
-            this->flow_solver_.init(this->ginterf_, this->res_prop_, gravity, this->bcond_);
-        }
+        // Set up solvers. Due to new implementation of periodic BCs, this must be done for all flow_direction
+        // if (flow_direction == 0) {
+        this->flow_solver_.init(this->ginterf_, this->res_prop_, gravity, this->bcond_);
+        // }
         transport_solver_.initObj(this->ginterf_, this->res_prop_, this->bcond_, boundary_saturation);
 
         // Run pressure solver.
