@@ -178,11 +178,17 @@ namespace Opm
     inline void
     UpscalerBase<Traits>::setBoundaryConditionType(BoundaryConditionType type)
     {
-        bctype_ = type;
-        if (type == Periodic || type == Linear) {
-            grid_.setUniqueBoundaryIds(true);
+        if ((type == Periodic && bctype_ != Periodic)
+            || (type != Periodic && bctype_ == Periodic)) {
+            THROW("Cannot switch to or from Periodic boundary condition, "
+                  "periodic must be set in init() params.");
         } else {
-            grid_.setUniqueBoundaryIds(false);
+            bctype_ = type;
+            if (type == Periodic || type == Linear) {
+                grid_.setUniqueBoundaryIds(true);
+            } else {
+                grid_.setUniqueBoundaryIds(false);
+            }
         }
     }
 

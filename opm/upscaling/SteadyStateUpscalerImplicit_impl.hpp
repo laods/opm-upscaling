@@ -107,6 +107,7 @@ namespace Opm
 
 
 
+
     namespace {
         double maxMobility(double m1, double m2)
         {
@@ -349,18 +350,11 @@ namespace Opm
             thresholdMobility(mob2[c].mob, mob2_threshold);
         }
 
-        // OBS! Set boundary conditions to fixed before calling single-phase upscaling
-        typename Super::BoundaryConditionType orig_bctype = this->bctype_;
-        setBoundaryConditionType(Super::BoundaryConditionType::Fixed);
-        
         // Compute upscaled relperm for each phase.
         ReservoirPropertyFixedMobility<Mob> fluid_first(mob1);
         permtensor_t eff_Kw = Super::upscaleEffectivePerm(fluid_first);
         ReservoirPropertyFixedMobility<Mob> fluid_second(mob2);
         permtensor_t eff_Ko = Super::upscaleEffectivePerm(fluid_second);
-
-        // Reset boundary conditions
-        setBoundaryConditionType(orig_bctype);
 
         // Set the steady state saturation fields for eventual outside access.
         last_saturation_state_.swap(saturation);
