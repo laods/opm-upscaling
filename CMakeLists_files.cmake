@@ -73,6 +73,7 @@ list (APPEND EXAMPLE_SOURCE_FILES
 	examples/upscale_singlephase.cpp
 	examples/upscale_steadystate_implicit.cpp
 	tests/compare_upscaling_results.cpp
+	examples/printForceInfo.cpp
 	)
 
 # programs listed here will not only be compiled, but also marked for
