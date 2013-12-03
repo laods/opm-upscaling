@@ -273,7 +273,7 @@ namespace Opm
                                 average_frac_flow += frac_flow;
                                 min_frac_flow = std::min(min_frac_flow, frac_flow);
                                 max_frac_flow = std::max(max_frac_flow, frac_flow);
-                                std::cout << "Frac flow water: " << frac_flow << " (face centroid: " << f->centroid() << ")" << std::endl;
+                                //std::cout << "Frac flow water: " << frac_flow << " (face centroid: " << f->centroid() << ")" << std::endl;
                             }
                         }
                     }
@@ -320,7 +320,7 @@ namespace Opm
             saturation_old = saturation;
         }
         success = stationary;
-
+       
         // Compute phase mobilities.
         // First: compute maximal mobilities.
         typedef typename Super::ResProp::Mobility Mob;
