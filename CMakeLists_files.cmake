@@ -77,6 +77,7 @@ list (APPEND EXAMPLE_SOURCE_FILES
 	examples/upscale_relpermvisc.cpp
 	examples/upscale_singlephase.cpp
 	examples/upscale_steadystate_implicit.cpp
+	examples/upscale_steadystate_analytic.cpp
 	tests/compare_upscaling_results.cpp
 	)
 
@@ -107,6 +108,7 @@ list (APPEND PROGRAM_SOURCE_FILES
 	examples/upscale_relpermvisc.cpp
 	examples/upscale_singlephase.cpp
 	examples/upscale_steadystate_implicit.cpp
+	examples/upscale_steadystate_analytic.cpp
 	)
 
 # originally generated with the command:
