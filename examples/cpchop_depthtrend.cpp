@@ -38,6 +38,13 @@
 #include <fstream>
 #include <iostream>
 
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
+
 /**
    This program is a variant of cpchop. Instead of subsampling randomly, 
    it picks subsamples downwards in a model. It is specifically designed
@@ -51,6 +58,7 @@
 
 
 int main(int argc, char** argv)
+try
 {
    if (argc == 1) {
         std::cout << "Usage: cpchop_depthtrend gridfilename=filename.grdecl [zresolution=1] [zlen=1] [ilen=5] [jlen=5] " << std::endl;
@@ -58,6 +66,8 @@ int main(int argc, char** argv)
         std::cout << "       [seed=111] [z_tolerance=0.0] [minperm=1e-9] " << std::endl;
         exit(1);
     }
+
+    Dune::MPIHelper::instance(argc, argv);
 
     Opm::parameter::ParameterGroup param(argc, argv);
     std::string gridfilename = param.get<std::string>("gridfilename");
@@ -223,3 +233,8 @@ int main(int argc, char** argv)
         std::cout << outputtmp.str();
     }
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

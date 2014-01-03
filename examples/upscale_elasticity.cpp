@@ -17,12 +17,20 @@
 #include <unistd.h>
 #include <cstring>
 #include <dune/common/exceptions.hh> // We use exceptions
+#include <dune/common/version.hh>
 #include <opm/core/utility/StopWatch.hpp>
 #include <opm/core/utility/parameters/ParameterGroup.hpp>
 #include <dune/grid/io/file/vtk/vtkwriter.hh>
 
 #if HAVE_OPENMP
 #include <omp.h>
+#endif
+
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
 #endif
 
 #include <opm/elasticity/elasticity_upscale.hpp>
@@ -213,8 +221,15 @@ void writeOutput(const Params& p, Opm::time::StopWatch& watch, int cells,
 
 //! \brief Main driver
 int main(int argc, char** argv)
+try
 {
   try {
+    Dune::MPIHelper& mpi=Dune::MPIHelper::instance(argc, argv);
+    const int size = mpi.size();
+    if (size != 1) {
+      std::cerr << "This program does not support MPI parallelization" << std::endl;
+      return 2;
+    }
     static const int dim = 3;
 
     typedef Dune::CpGrid GridType;
@@ -233,11 +248,11 @@ int main(int argc, char** argv)
 
     GridType grid;
     if (p.file == "uniform") {
-      Dune::array<int,3> cells;
+      std::array<int,3> cells;
       cells[0] = p.cellsx;
       cells[1] = p.cellsy;
       cells[2] = p.cellsz;
-      Dune::array<double,3> cellsize;
+      std::array<double,3> cellsize;
       cellsize[0] = cellsize[1] = cellsize[2] = 1.f; 
       grid.createCartesian(cells,cellsize);
     } else
@@ -346,3 +361,8 @@ int main(int argc, char** argv)
   }
   return 1;
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

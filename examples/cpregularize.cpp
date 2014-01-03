@@ -49,8 +49,15 @@
 #include <fstream>
 #include <iostream>
 
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 int main(int argc, char** argv)
+try
 {
    if (argc == 1) {
         std::cout << "Usage: cpregularize gridfilename=filename.grdecl [ires=5] [jres=5] [zres=5] " << std::endl;
@@ -59,6 +66,8 @@ int main(int argc, char** argv)
         std::cout << "       [resultgrid=regularizedgrid.grdecl]" << std::endl;
         exit(1);
     }
+
+    Dune::MPIHelper::instance(argc, argv);
   
     Opm::parameter::ParameterGroup param(argc, argv);
     std::string gridfilename = param.get<std::string>("gridfilename");
@@ -111,7 +120,7 @@ int main(int argc, char** argv)
     // Original x/y resolution in terms of coordinate values (not indices)
     Opm::EclipseGridParser gridparser(gridfilename); // TODO: REFACTOR!!!! it is stupid to parse this again
     Opm::EclipseGridInspector gridinspector(gridparser);
-    std::tr1::array<double, 6> gridlimits=gridinspector.getGridLimits();
+    std::array<double, 6> gridlimits=gridinspector.getGridLimits();
     double finegridxresolution = (gridlimits[1]-gridlimits[0])/dims[0];
     double finegridyresolution = (gridlimits[3]-gridlimits[2])/dims[1];
 
@@ -258,4 +267,9 @@ int main(int argc, char** argv)
     
     out.close();
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+
 

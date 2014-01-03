@@ -51,6 +51,14 @@
 #include <sys/utsname.h>
 
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
+#include <opm/core/io/eclipse/EclipseGridInspector.hpp>
+
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 using namespace Opm;
 using namespace std;
@@ -71,7 +79,9 @@ void usageandexit() {
 /**
    @brief Computes simple statistics.
 */
-int main(int varnum, char** vararg) {        
+int main(int varnum, char** vararg) try {        
+
+    Dune::MPIHelper::instance(varnum, vararg);
 
     const double emptycellvolumecutoff = 1e-10;
 
@@ -191,6 +201,11 @@ int main(int varnum, char** vararg) {
     if (eclParser.hasField("PORO")) {
         doporosity = true;
     }
+    bool dontg = false;
+    if (eclParser.hasField("NTG")) {
+        // Ntg only used together with PORO
+        if (eclParser.hasField("PORO")) dontg = true;
+    }    
 
     bool doperm = false;
     if (eclParser.hasField("PERMX")) {
@@ -217,20 +232,25 @@ int main(int varnum, char** vararg) {
         " x " << griddims[1]+1 << ")" << endl;
     
     // Find max and min in x-, y- and z-directions
-    std::tr1::array<double, 6> gridlimits = eclInspector.getGridLimits();
+    std::array<double, 6> gridlimits = eclInspector.getGridLimits();
     cout << "                 x-limits: " << gridlimits[0] << " -- " << gridlimits[1] << endl;
     cout << "                 y-limits: " << gridlimits[2] << " -- " << gridlimits[3] << endl;
     cout << "                 z-limits: " << gridlimits[4] << " -- " << gridlimits[5] << endl;
 
     // First do overall statistics
-    vector<double> cellVolumes, cellPoreVolumes;
+    vector<double> cellVolumes, cellPoreVolumes, netCellVolumes, netCellPoreVolumes;
     cellVolumes.resize(num_eclipse_cells, 0.0);
     cellPoreVolumes.resize(num_eclipse_cells, 0.0);
+    netCellVolumes.resize(num_eclipse_cells, 0.0);
+    netCellPoreVolumes.resize(num_eclipse_cells, 0.0);
     int active_cell_count = 0;
-    vector<double> poros;
+    vector<double> poros, ntgs;
     vector<double> permxs, permys, permzs;
     if (doporosity) {
         poros = eclParser.getFloatingPointValue("PORO");
+    }
+    if (dontg) {
+        ntgs = eclParser.getFloatingPointValue("NTG");
     }
     if (doperm) {
         permxs = eclParser.getFloatingPointValue("PERMX");
@@ -256,6 +276,10 @@ int main(int varnum, char** vararg) {
             ++active_cell_count;
             if (doporosity) {
                 cellPoreVolumes[cell_idx] = cellVolumes[cell_idx] * poros[cell_idx];
+            }
+            if (dontg) {
+                netCellPoreVolumes[cell_idx] = cellVolumes[cell_idx] * poros[cell_idx] * ntgs[cell_idx];
+                netCellVolumes[cell_idx] = cellVolumes[cell_idx] * ntgs[cell_idx];
             }
         }
     }
@@ -288,6 +312,18 @@ int main(int varnum, char** vararg) {
         if  (negativeporocells > 0) {
             cout << "Cells with negative porosity: " << negativeporocells << endl;
         }
+    }
+    if (dontg) {
+        double netVolume = std::accumulate(netCellVolumes.begin(),
+                                               netCellVolumes.end(),
+                                               0.0);
+        cout << "         Total net volume: " << netVolume << endl;
+        cout << "             Upscaled NTG: " << netVolume/volume << endl;        
+        double netPoreVolume = std::accumulate(netCellPoreVolumes.begin(), 
+                                               netCellPoreVolumes.end(),
+                                               0.0);
+        cout << "     Total net porevolume: " << netPoreVolume << endl;
+        cout << "    Upscaled net porosity: " << netPoreVolume/netVolume << endl;        
     }
     
     double permxsum = 0.0, permysum = 0.0, permzsum = 0.0;
@@ -483,4 +519,9 @@ int main(int varnum, char** vararg) {
     
     return 0;
     
-};
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

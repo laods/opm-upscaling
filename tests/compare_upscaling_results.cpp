@@ -17,6 +17,8 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "config.h"
+
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -57,7 +59,7 @@ Matrix readResultFile(const char* filename, int rows, int cols) {
     int col = 0;
     string line;
     while (getline(resultfile, line)) {
-        if (line[0] == '#') // Skip lines starting with #
+        if (line.empty() || line[0] == '#') // Skip empty lines and lines starting with #
             continue;
         istringstream iss(line);
         while (iss >> value) {
@@ -97,8 +99,8 @@ Matrix readResultFile(const char* filename, int rows, int cols) {
 ///     Absolute tolerance
 bool matrixAlmostEqual(Matrix refSoln, Matrix newSoln, double tol) {
 
-    ASSERT(refSoln.numRows() == newSoln.numRows());
-    ASSERT(refSoln.numCols() == newSoln.numCols());
+    assert(refSoln.numRows() == newSoln.numRows());
+    assert(refSoln.numCols() == newSoln.numCols());
     // Test element by element
     for (int row=0; row<refSoln.numRows(); ++row) {
         for (int col=0; col<refSoln.numCols(); ++col) {
@@ -123,7 +125,7 @@ bool matrixAlmostEqual(Matrix refSoln, Matrix newSoln, double tol) {
 /// The results in the input files are read and compared to eachother within a given absolute tolerance.
 /// Lines starting with '#' are ignored. Returns 1 if test fails, 0 otherwise. If test failes, both
 /// solutions are printed to screen.
-int main(int varnum, char** vararg) {
+int main(int varnum, char** vararg) try {
 
     // Check if the correct number of variables are given
     if (varnum != 6) {
@@ -157,3 +159,8 @@ int main(int varnum, char** vararg) {
 
     return 0;
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

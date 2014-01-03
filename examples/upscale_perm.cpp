@@ -53,7 +53,13 @@
 #include <sys/utsname.h>
 
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
+
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
 #include <dune/common/mpihelper.hh>
+#endif
 
 using namespace std;
 
@@ -83,8 +89,7 @@ void usage() {
    @return int
 */
 int upscale(int varnum, char** vararg) {
-    Dune::MPIHelper& mpi=Dune::MPIHelper::instance(varnum, vararg);
-    mpi.rank();
+    Dune::MPIHelper::instance(varnum, vararg);
     if (varnum ==  1) { // If no arguments supplied ("upscale_perm" is the first argument)
         cout << "Error: No eclipsefile provided" << endl;
         usage();
@@ -98,9 +103,9 @@ int upscale(int varnum, char** vararg) {
     options.insert(make_pair("linsolver_tolerance", "1e-8"));  // residual tolerance for linear solver
     options.insert(make_pair("linsolver_verbosity", "0"));     // verbosity level for linear solver
     options.insert(make_pair("linsolver_max_iterations", "0"));         // Maximum number of iterations allow, specify 0 for default
-    options.insert(make_pair("linsolver_prolongate_factor", "1.6")); // Factor to scale the prolongate coarse grid correction
-    options.insert(make_pair("linsolver_type",      "1"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG
-    options.insert(make_pair("linsolver_smooth_steps", "2")); // Number of pre and postsmoothing steps for AMG
+    options.insert(make_pair("linsolver_prolongate_factor", "1.0")); // Factor to scale the prolongate coarse grid correction
+    options.insert(make_pair("linsolver_type",      "3"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG, 2 = KAMG/CG, 3 = FastAMG/CG
+    options.insert(make_pair("linsolver_smooth_steps", "1")); // Number of pre and postsmoothing steps for AMG
 
     // Parse options from command line
     int eclipseindex = 1; // Index for the eclipsefile in the command line options
@@ -386,6 +391,11 @@ int upscale(int varnum, char** vararg) {
    @param vararg Input arguments
    @return int
 */
-int main(int varnum, char** vararg) {
+int main(int varnum, char** vararg) try {
     return upscale(varnum, vararg);
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

@@ -1,8 +1,8 @@
 //===========================================================================
 //
-// File: aniso_implicit_steadystate_test.cpp
+// File: implicit_steadystate_test.cpp
 //
-// Created: Thu Jul 22 15:25:07 2010
+// Created: Thu Jul 22 15:36:52 2010
 //
 // Author(s): Atgeirr F Rasmussen <atgeirr@sintef.no>
 //            Bård Skaflestad     <bard.skaflestad@sintef.no>
@@ -38,13 +38,19 @@
 
 #include <opm/upscaling/SteadyStateUpscalerManager.hpp>
 #include <opm/upscaling/UpscalingTraits.hpp>
+#include <iostream>
 
 using namespace Opm;
 
 int main(int argc, char** argv)
+try
 {
     // Initialize.
     Opm::parameter::ParameterGroup param(argc, argv);
-    SteadyStateUpscalerManager<SimulatorTraits<Anisotropic, ImplicitCap> > mgr;
+    SteadyStateUpscalerManager<SimulatorTraits<Isotropic, ImplicitCap> > mgr;
     mgr.upscale(param);
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
 }

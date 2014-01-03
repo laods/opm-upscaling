@@ -69,8 +69,11 @@
 #include <map>
 #include <sys/utsname.h>
 
-#ifdef HAVE_MPI
-#include <mpi.h>
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
 #endif
 
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
@@ -147,16 +150,13 @@ void usage()
 
 void usageandexit() {
     usage();
-#ifdef HAVE_MPI
-    MPI_Finalize();
-#endif
     exit(1);
 }
 
 // Assumes that permtensor_t use C ordering.
 double getVoigtValue(const SinglePhaseUpscaler::permtensor_t& K, int voigt_idx)
 {
-    ASSERT(K.numRows() == 3 && K.numCols() == 3);
+    assert(K.numRows() == 3 && K.numCols() == 3);
     switch (voigt_idx) {
     case 0: return K.data()[0];
     case 1: return K.data()[4];
@@ -177,7 +177,7 @@ double getVoigtValue(const SinglePhaseUpscaler::permtensor_t& K, int voigt_idx)
 // Assumes that permtensor_t use C ordering.
 void setVoigtValue(SinglePhaseUpscaler::permtensor_t& K, int voigt_idx, double val)
 {
-    ASSERT(K.numRows() == 3 && K.numCols() == 3);
+    assert(K.numRows() == 3 && K.numCols() == 3);
     switch (voigt_idx) {
     case 0: K.data()[0] = val; break;
     case 1: K.data()[4] = val; break;
@@ -195,6 +195,7 @@ void setVoigtValue(SinglePhaseUpscaler::permtensor_t& K, int voigt_idx, double v
 }
 
 int main(int varnum, char** vararg)
+try
 {
    // Variables used for timing/profiling:
    clock_t start, finish;
@@ -206,13 +207,11 @@ int main(int varnum, char** vararg)
     * Process command line options
     */
 
-   int mpi_rank = 0;
+   Dune::MPIHelper& mpi=Dune::MPIHelper::instance(varnum, vararg);
+   const int mpi_rank = mpi.rank();
 #ifdef HAVE_MPI
-   int mpi_nodecount = 1;
-   MPI_Init(&varnum, &vararg);
-   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &mpi_nodecount);
-#endif 
+   const int mpi_nodecount = mpi.size();
+#endif
    bool isMaster = (mpi_rank == 0);
    if (varnum == 1) { /* If no arguments supplied ("upscale_relperm" is the first "argument") */
       usage();
@@ -245,15 +244,15 @@ int main(int varnum, char** vararg)
    options.insert(make_pair("linsolver_tolerance", "1e-12"));  // residual tolerance for linear solver
    options.insert(make_pair("linsolver_verbosity", "0"));     // verbosity level for linear solver
    options.insert(make_pair("linsolver_max_iterations", "0"));         // Maximum number of iterations allow, specify 0 for default
-   options.insert(make_pair("linsolver_prolongate_factor", "1.6")); // Factor to scale the prolongate coarse grid correction,
-   options.insert(make_pair("linsolver_type",      "1"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG
+   options.insert(make_pair("linsolver_prolongate_factor", "1.0")); // Factor to scale the prolongate coarse grid correction,
+   options.insert(make_pair("linsolver_type",      "3"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG, 2 = KAMG/CG, 3 = FastAMG/CG
    options.insert(make_pair("fluids",              "ow")); // wheater upscaling for oil/water (ow) or gas/oil (go)
    options.insert(make_pair("krowxswirr",          "-1")); // relative permeability in x direction of oil in corresponding oil/water system
    options.insert(make_pair("krowyswirr",          "-1")); // relative permeability in y direction of oil in corresponding oil/water system
    options.insert(make_pair("krowzswirr",          "-1")); // relative permeability in z direction of oil in corresponding oil/water system
    options.insert(make_pair("doEclipseCheck",      "true")); // Check if minimum relpermvalues in input are zero (specify critical saturations)
    options.insert(make_pair("critRelpermThresh",   "1e-6")); // Threshold for setting minimum relperm to 0 (thus specify critical saturations)
-   options.insert(make_pair("linsolver_smooth_steps", "2")); // Number of pre and postsmoothing steps for AMG
+   options.insert(make_pair("linsolver_smooth_steps", "1")); // Number of pre and postsmoothing steps for AMG
 
    // Conversion factor, multiply mD numbers with this to get m² numbers
    const double milliDarcyToSqMetre = 9.869233e-16;
@@ -2043,9 +2042,10 @@ int main(int varnum, char** vararg)
 
    }
 
-#if HAVE_MPI
-   MPI_Finalize();
-#endif
-
    return 0;
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

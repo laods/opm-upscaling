@@ -39,6 +39,8 @@
 #include <opm/porsol/common/setupBoundaryConditions.hpp>
 #include <opm/porsol/common/ReservoirPropertyTracerFluid.hpp>
 
+#include <iostream>
+
 namespace Opm
 {
 
@@ -48,10 +50,10 @@ namespace Opm
 	  twodim_hack_(false),
 	  residual_tolerance_(1e-8),
 	  linsolver_maxit_(0),
-	  linsolver_prolongate_factor_(1.6),
+	  linsolver_prolongate_factor_(1.0),
 	  linsolver_verbosity_(0),
-          linsolver_type_(1),
-          linsolver_smooth_steps_(2)
+          linsolver_type_(3),
+          linsolver_smooth_steps_(1)
     {
     }
 
@@ -180,7 +182,7 @@ namespace Opm
     {
         if ((type == Periodic && bctype_ != Periodic)
             || (type != Periodic && bctype_ == Periodic)) {
-            THROW("Cannot switch to or from Periodic boundary condition, "
+            OPM_THROW(std::runtime_error, "Cannot switch to or from Periodic boundary condition, "
                   "periodic must be set in init() params.");
         } else {
             bctype_ = type;
@@ -263,7 +265,7 @@ namespace Opm
 		}
 		break;
 	    default:
-		THROW("Unknown boundary type: " << bctype_);
+		OPM_THROW(std::runtime_error, "Unknown boundary type: " << bctype_);
 	    }
 	    double delta = computeDelta(pdd);
 	    for (int i = 0; i < Dimension; ++i) {
@@ -310,19 +312,19 @@ namespace Opm
 			      std::cerr << "Flow may be in wrong direction at bid: " << f->boundaryId()<<" (canonical: "<<canon_bid
 					  << ") Magnitude: " << std::fabs(flux) << std::endl;
 #endif
-				// THROW("Detected outflow at entry face: " << face);
+				// OPM_THROW(std::runtime_error, "Detected outflow at entry face: " << face);
 			    }
 			    side1_flux += flux*norm_comp;
 			    side1_area += area;
 			} else {
-			    ASSERT(canon_bid - 1 == 2*flow_dir + 1);
+			    assert(canon_bid - 1 == 2*flow_dir + 1);
 			    ++num_side2;
 			    if (flow_dir == pdrop_dir && flux < 0.0) {
 #ifdef VERBOSE
 				std::cerr << "Flow may be in wrong direction at bid: " << f->boundaryId()
 					  << " Magnitude: " << std::fabs(flux) << std::endl;
 #endif
-				// THROW("Detected inflow at exit face: " << face);
+				// OPM_THROW(std::runtime_error, "Detected inflow at exit face: " << face);
 			    }
 			    side2_flux += flux*norm_comp;
 			    side2_area += area;
@@ -385,7 +387,30 @@ namespace Opm
     }
 
 
+    template <class Traits>
+    double UpscalerBase<Traits>::upscaleNetPorosity() const
+    {
+        double total_net_vol = 0.0;
+        double total_pore_vol = 0.0;
+	for (CellIter c = ginterf_.cellbegin(); c != ginterf_.cellend(); ++c) {
+            total_net_vol += c->volume()*res_prop_.ntg(c->index());
+            total_pore_vol += c->volume()*res_prop_.porosity(c->index())*res_prop_.ntg(c->index());
+        }
+        if (total_net_vol>0.0) return total_pore_vol/total_net_vol;
+        else return 0.0;
+    }
 
+    template <class Traits>
+    double UpscalerBase<Traits>::upscaleNTG() const
+    {
+        double total_vol = 0.0;
+        double total_net_vol = 0.0;
+	for (CellIter c = ginterf_.cellbegin(); c != ginterf_.cellend(); ++c) {
+            total_vol += c->volume();
+            total_net_vol += c->volume()*res_prop_.ntg(c->index());
+        }
+        return total_net_vol/total_vol;
+    }
 
 } // namespace Opm
 

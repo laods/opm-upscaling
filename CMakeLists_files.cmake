@@ -22,15 +22,18 @@
 #	                      files can of course include other files than these;
 #	                      you should only add to this list if the *user* of
 #	                      the library needs it.
+#
+# ATTIC_FILES           Unmaintained files. This for the projects developers
+#                       only. Don't expect these files to build.
 
 # originally generated with the command:
 # find opm -name '*.c*' -printf '\t%p\n' | sort
 list (APPEND MAIN_SOURCE_FILES
 	opm/elasticity/boundarygrid.cpp
 	opm/elasticity/dynmatrixev.cpp
-	opm/elasticity/fmatrixev_ext.cc
 	opm/elasticity/material.cpp
 	opm/elasticity/materials.cpp
+	opm/elasticity/matrixops.cpp
 	opm/elasticity/mpc.cpp
 	)
 
@@ -52,6 +55,8 @@ list (APPEND TEST_DATA_FILES
   tests/input_data/reference_solutions/upscale_perm_BCflp_27cellsIso.txt 
   tests/input_data/reference_solutions/upscale_perm_BCfl_EightCells.txt 
   tests/input_data/reference_solutions/upscale_perm_BCflp_Hummocky.txt 
+  tests/input_data/reference_solutions/upscale_elasticity_mpc_EightCells.txt
+  tests/input_data/reference_solutions/upscale_elasticity_mortar_EightCells.txt
 	)
 
 # originally generated with the command:
@@ -74,6 +79,15 @@ list (APPEND EXAMPLE_SOURCE_FILES
 	examples/upscale_steadystate_implicit.cpp
 	tests/compare_upscaling_results.cpp
 	examples/printForceInfo.cpp
+	)
+
+# originally generated with the command:
+# find attic -name '*.c*' -printf '\t%p\n' | sort
+list (APPEND ATTIC_FILES
+	attic/aniso_implicit_steadystate_test.cpp
+	attic/aniso_steadystate_test.cpp
+	attic/implicit_steadystate_test.cpp
+	attic/steadystate_test_explicit.cpp
 	)
 
 # programs listed here will not only be compiled, but also marked for
@@ -108,12 +122,10 @@ list (APPEND PUBLIC_HEADER_FILES
 	opm/elasticity/elasticity_impl.hpp
 	opm/elasticity/elasticity_upscale.hpp
 	opm/elasticity/elasticity_upscale_impl.hpp
-	opm/elasticity/fmatrixev_ext.hh
 	opm/elasticity/logutils.hpp
 	opm/elasticity/material.hh
 	opm/elasticity/materials.hh
 	opm/elasticity/matrixops.hpp
-	opm/elasticity/matrixops_impl.hpp
 	opm/elasticity/mortar_evaluator.hpp
 	opm/elasticity/mortar_schur.hpp
 	opm/elasticity/mortar_schur_precond.hpp
@@ -131,6 +143,5 @@ list (APPEND PUBLIC_HEADER_FILES
 	opm/upscaling/SteadyStateUpscalerManagerImplicit.hpp
 	opm/upscaling/UpscalerBase.hpp
 	opm/upscaling/UpscalerBase_impl.hpp
-	opm/upscaling/upscaling.hh
 	opm/upscaling/UpscalingTraits.hpp
 	)

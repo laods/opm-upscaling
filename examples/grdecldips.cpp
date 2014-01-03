@@ -38,17 +38,25 @@
 #include <opm/porsol/common/setupBoundaryConditions.hpp>
 #include <opm/core/utility/Units.hpp>
 
-
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 using namespace std;
 
 
-int main(int argc, char** argv) {        
+int main(int argc, char** argv) try {        
     if (argc ==  1) { // If no arguments supplied 
         cout << "Usage: grdecldips gridfilename=foo.grdecl [mincellvolume=1e-8] " << endl;
         cout << "       [listallcells=false] [output=filename.txt]" << endl;
         exit(1);
     } 
+
+    Dune::MPIHelper::instance(argc, argv);
+
     Opm::parameter::ParameterGroup param(argc, argv);
     
     std::string gridfilename = param.get<std::string>("gridfilename");
@@ -148,4 +156,9 @@ int main(int argc, char** argv) {
     }
     return 0;
     
-};
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

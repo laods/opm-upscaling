@@ -67,6 +67,13 @@
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
 
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
+
 using namespace Opm;
 using namespace std;
 
@@ -110,12 +117,15 @@ void usageandexit() {
 }
 
 int main(int varnum, char** vararg)
+try
 { 
 
    /******************************************************************************
     * Step 1:
     * Process command line options
     */
+
+    Dune::MPIHelper::instance(varnum, vararg);
 
    if (varnum == 1) { /* If no arguments supplied ("upscale_cap" is the first ('zero')  "argument") */
       usage();
@@ -724,4 +734,9 @@ int main(int varnum, char** vararg)
 
 
    return 0;
-};
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+
