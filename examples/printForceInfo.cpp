@@ -23,17 +23,73 @@ int main(int varnum, char** vararg) {
     int dir = atoi(vararg[2]);
     double sigma = atof(vararg[3]);
     double deltap = atof(vararg[4]);
+    const string section_name = string(vararg[5]);
      
-    // Cap pressure data for SN91 rocks.
+    // Cap pressure data rocks and map poro and satnum
     // OBS!!! HARD-CODED!
-    //const double Pc_avg[] = {23771,86712,1987,50694,78336,3516,9222,66404,6282,5675,20412,26280,4547,79796,7158};
-    //const double Pb[] = {3038,12617,679,3712,17123,1327,1869,8420,1188,1401,1630,4949,1440,14447,1775};
-    
-    // Cap pressure data for parallel rocks
-    // OBS!!! HARD-CODED!
-    const double Pc_avg[] = {1.2286e4,2.7473e5};
-    const double Pb[] = {4554.9,1.0185e5};
-    
+    double Pc_avg[20] = { };
+    double Pb[20] = { };
+    map<double,int> map_poro_satnum;
+    if (section_name == "SN74" || section_name == "sn74") {
+	Pc_avg = {23771,86713,1987,50694,28470,66404,26280,58528,4547,79796,61050,10623};
+	Pb = {3038,12617,679,3712,5526,8420,4949,9626,1440,14447,8060,3386};
+	map_poro_satnum[0.1933] = 1;
+	map_poro_satnum[0.1033] = 2;
+	map_poro_satnum[0.27] = 3;
+	map_poro_satnum[0.1755] = 4;
+	map_poro_satnum[0.2249] = 5;
+	map_poro_satnum[0.1533] = 6;
+	map_poro_satnum[0.203] = 7;
+	map_poro_satnum[0.1701] = 8;
+	map_poro_satnum[0.2734] = 9;
+	map_poro_satnum[0.0801] = 10;
+	map_poro_satnum[0.12] = 11;
+	map_poro_satnum[0.24] = 12;
+    }
+    else if (section_name == "SN82" || section_name == "sn82") {
+	Pc_avg = {23771,86713,50694,20412,2882,31040,4547,79796,20369,10623};
+	Pb = {3038,12617,3712,1630,1153,10224,1440,14447,1573,3386};
+	map_poro_satnum[0.1933] = 1;
+	map_poro_satnum[0.1033] = 2;
+	map_poro_satnum[0.1755] = 3;
+	map_poro_satnum[0.215] = 4;
+	map_poro_satnum[0.2348] = 5;
+	map_poro_satnum[0.2098] = 6;
+	map_poro_satnum[0.2734] = 7;
+	map_poro_satnum[0.0801] = 8;
+	map_poro_satnum[0.2149] = 9;
+	map_poro_satnum[0.24] = 10;
+    }
+    else if (section_name == "SN91" || section_name == "sn91") {
+	Pc_avg = {23771,86713,1987,50694,78336,3516,9222,66404,6282,5675,20412,26280,4547,79796,7158};
+	Pb = {3038,12617,679,3712,17123,1327,1869,8420,1188,1401,1630,4949,1440,14447,1775};
+	map_poro_satnum[0.1933] = 1;
+	map_poro_satnum[0.1033] = 2;
+	map_poro_satnum[0.27] = 3;
+	map_poro_satnum[0.1755] = 4;
+	map_poro_satnum[0.15] = 5;
+	map_poro_satnum[0.2299] = 6;
+	map_poro_satnum[0.2534] = 7;
+	map_poro_satnum[0.1532] = 8;
+	map_poro_satnum[0.2428] = 9;
+	map_poro_satnum[0.2098] = 10;
+	map_poro_satnum[0.215] = 11;
+	map_poro_satnum[0.203] = 12;
+	map_poro_satnum[0.2734] = 13;
+	map_poro_satnum[0.0801] = 14;
+	map_poro_satnum[0.2605] = 15;
+    }
+    else if (section_name == "Parallel" || section_name == "parallel") {
+	Pc_avg = {1.2286e4,2.7473e5};
+	Pb = {4554.9,1.0185e5};
+	map_poro_satnum[0.2] = 1;
+	map_poro_satnum[0.1] = 2;
+    }
+    else {
+	cerr << "Model type (argument 5: '" << section_name << "') unknown. Either SN74, SN82, SN91 or Parallel.";
+	exit(1);
+    }
+
     // Test if filename exists and is readable
     ifstream eclipsefile(ECLIPSEFILENAME, ios::in);
     if (eclipsefile.fail()) {
@@ -60,75 +116,7 @@ int main(int varnum, char** vararg) {
     
     Opm::Rock<3> rock;
     rock.init(eclParser, grid.globalCell());
-    
-    // OBS!!! HARD-CODED!
-    vector<int> cell2satnum(grid.numCells(),0);
-    for (GridInterface::CellIterator cell_iter = gridinterf.cellbegin(); cell_iter != gridinterf.cellend(); ++cell_iter) {
-        int cell_index = cell_iter->index();
-        const double cell_poro = rock.porosity(cell_index);
-        /*
-        if (cell_poro == 0.1933) {
-            cell2satnum[cell_index] = 1;
-        }
-        else if (cell_poro == 0.1033) {
-            cell2satnum[cell_index] = 2;
-        }
-        else if (cell_poro == 0.27) {
-            cell2satnum[cell_index] = 3;
-        }
-        else if (cell_poro == 0.1755) {
-            cell2satnum[cell_index] = 4;
-        }
-        else if (cell_poro == 0.15) {
-            cell2satnum[cell_index] = 5;
-        }
-        else if (cell_poro == 0.2299) {
-            cell2satnum[cell_index] = 6;
-        }
-        else if (cell_poro == 0.2534) {
-            cell2satnum[cell_index] = 7;
-        }
-        else if (cell_poro == 0.1532) {
-            cell2satnum[cell_index] = 8;
-        }
-        else if (cell_poro == 0.2428) {
-            cell2satnum[cell_index] = 9;
-        }
-        else if (cell_poro == 0.2098) {
-            cell2satnum[cell_index] = 10;
-        }
-        else if (cell_poro == 0.215) {
-            cell2satnum[cell_index] = 11;
-        }
-        else if (cell_poro == 0.203) {
-            cell2satnum[cell_index] = 12;
-        }
-        else if (cell_poro == 0.2734) {
-            cell2satnum[cell_index] = 13;
-        }
-        else if (cell_poro == 0.0801) {
-            cell2satnum[cell_index] = 14;
-        }
-        else if (cell_poro == 0.2604) {
-            cell2satnum[cell_index] = 15;
-        }
-        else {
-            cout << "Unknown porosity (" << cell_poro << ") at cell " << cell_index << endl;
-            exit(1);
-        }
-        */
-        if (cell_poro == 0.2) {
-            cell2satnum[cell_index] = 1;
-        }
-        else if (cell_poro == 0.1) {
-            cell2satnum[cell_index] = 2;
-        }
-        else {
-            cout << "Unknown porosity (" << cell_poro << ") at cell " << cell_index << endl;
-            exit(1);
-        }
-    }
-    
+   
     double accumulated_porevol = 0.0;
     double nabla_Pc_J = 0.0;
     double nabla_Pc_avg = 0.0;
@@ -144,7 +132,11 @@ int main(int varnum, char** vararg) {
         const double cell_poro = rock.porosity(cell_index);
         const double cell_porevol = cell_iter->volume()*cell_poro;
         const double cell_lambda = sqrt(cell_perm/cell_poro);
-        const int cell_satnum = cell2satnum[cell_index];
+	if (map_poro_satnum.find(cell_poro) == map_poro_satnum.end()) {
+	    cerr << "Can't map poro " << cell_poro << " to a satnum. Check map!" << endl;
+	    exit(1);
+	}
+	const int cell_satnum = (map_poro_satnum.find(cell_poro))->second;
         const double cell_Pc_avg = Pc_avg[cell_satnum];
         const double cell_Pb = Pb[cell_satnum];
         for (FI face_iter = cell_iter->facebegin(); face_iter != cell_iter->faceend(); ++face_iter) {
@@ -154,7 +146,11 @@ int main(int varnum, char** vararg) {
                 const double neighbour_poro = rock.porosity(neighbour_index);
                 const double neighbour_porevol = face_iter->neighbourCellVolume()*neighbour_poro;
                 const double neighbour_lambda = sqrt(neighbour_perm/neighbour_poro);
-                const int neighbour_satnum = cell2satnum[neighbour_index];
+		if (map_poro_satnum.find(neighbour_poro) == map_poro_satnum.end()) {
+		    cerr << "Can't map poro " << neighbour_poro << " to a satnum. Check map!" << endl;
+		    exit(1);
+		}
+		const int neighbour_satnum = (map_poro_satnum.find(neighbour_poro))->second;
                 const double neighbour_Pc_avg = Pc_avg[neighbour_satnum];
                 const double neighbour_Pb = Pb[neighbour_satnum];
                 const double length = (cell_iter->centroid() - face_iter->neighbourCell().centroid()).two_norm();
