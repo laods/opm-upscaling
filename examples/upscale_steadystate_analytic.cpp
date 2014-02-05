@@ -25,6 +25,11 @@ double arithmeticAvg(vector<double> parameter, vector<double> PV) {
     return avg;
 }
 
+double harmonicAvg(vector<double> parameter, vector<double> PV) {
+    double avg = (PV[0] + PV[1]) / (PV[0]/parameter[0] + PV[1]/parameter[1]);
+    return avg;
+}
+
 vector<double> calcSatCE(double sat_init, vector<double> PV, vector<double> Jfactor,
 			 MonotCubicInterpolator Jfunctions, MonotCubicInterpolator InvJfunctions) {
     vector<double> sat(2, 0.0);
@@ -274,17 +279,22 @@ int main(int varnum, char** vararg)
     stringstream outputtmp;
 
     /* Upscale abs perm */
-    double upscaled_perm = arithmeticAvg(perm, PV);
+    double upscaled_perm_a = arithmeticAvg(perm, PV);
+    double upscaled_perm_h = harmonicAvg(perm, PV);
 
     /* Upscale rel perm */
     const int points = atoi(options["points"].c_str());
     vector<double> zeros(points, 0.0);
-    vector<double> upscaled_krw_CE = zeros;
-    vector<double> upscaled_kro_CE = zeros;
     vector<double> upscaled_sat_CE = zeros;
     vector<double> upscaled_sat_VL = zeros;
-    vector<double> upscaled_krw_VL = zeros;
-    vector<double> upscaled_kro_VL = zeros;
+    vector<double> upscaled_krw_CE_a = zeros;
+    vector<double> upscaled_kro_CE_a = zeros;
+    vector<double> upscaled_krw_CE_h = zeros;
+    vector<double> upscaled_kro_CE_h = zeros;
+    vector<double> upscaled_krw_VL_a = zeros;
+    vector<double> upscaled_kro_VL_a = zeros;
+    vector<double> upscaled_krw_VL_h = zeros;
+    vector<double> upscaled_kro_VL_h = zeros;
 
     for (int i = 0; i < points; ++i) {
 	double sat_init = i/(double(points-1.0));
@@ -297,8 +307,10 @@ int main(int varnum, char** vararg)
 	kw[1] = KrfunctionsW[1].evaluate(sat_CE[1])*perm[1];
 	ko[0] = KrfunctionsO[0].evaluate(sat_CE[0])*perm[0];
 	ko[1] = KrfunctionsO[1].evaluate(sat_CE[1])*perm[1];
-	upscaled_krw_CE[i] = arithmeticAvg(kw, PV)/upscaled_perm;
-	upscaled_kro_CE[i] = arithmeticAvg(ko, PV)/upscaled_perm;
+	upscaled_krw_CE_a[i] = arithmeticAvg(kw, PV)/upscaled_perm_a;
+	upscaled_kro_CE_a[i] = arithmeticAvg(ko, PV)/upscaled_perm_a;
+	upscaled_krw_CE_h[i] = harmonicAvg(kw, PV)/upscaled_perm_h;
+	upscaled_kro_CE_h[i] = harmonicAvg(ko, PV)/upscaled_perm_h;
 	
 	// VL
 	vector<double> sat_VL = calcSatVL(sat_init, PV, visc, FracFlowFun, InvFracFlowFun);
@@ -307,12 +319,14 @@ int main(int varnum, char** vararg)
 	kw[1] = KrfunctionsW[1].evaluate(sat_VL[1])*perm[1];
 	ko[0] = KrfunctionsO[0].evaluate(sat_VL[0])*perm[0];
 	ko[1] = KrfunctionsO[1].evaluate(sat_VL[1])*perm[1];
-	upscaled_krw_VL[i] = arithmeticAvg(kw, PV)/upscaled_perm;
-	upscaled_kro_VL[i] = arithmeticAvg(ko, PV)/upscaled_perm;
+	upscaled_krw_VL_a[i] = arithmeticAvg(kw, PV)/upscaled_perm_a;
+	upscaled_kro_VL_a[i] = arithmeticAvg(ko, PV)/upscaled_perm_a;
+	upscaled_krw_VL_h[i] = harmonicAvg(kw, PV)/upscaled_perm_h;
+	upscaled_kro_VL_h[i] = harmonicAvg(ko, PV)/upscaled_perm_h;
     }
   
     outputtmp << "######################################################################" << endl
-	      << "# Analytical steadystate upscaling" << endl
+	      << "# Analytical steadystate upscaling (Arithmetic and Harmonic average)" << endl
 	      << "######################################################################" << endl
 	      << "# Parallel model with two alternating rocks:" << endl
 	      << "#   Rock 1: perm = " << perm[0] << "mD, poro = " << poro[0] << ", volume fraction = " << volFrac[0]
@@ -320,14 +334,17 @@ int main(int varnum, char** vararg)
 	      << "#   Rock 2: perm = " << perm[1] << "mD, poro = " << poro[1] << ", volume fraction = " << volFrac[1]
 	      << ", curves = \'" << JfunctionNames[1] << "\' (" << Jfunctions[1].getSize() << " points)" << endl
 	      << "######################################################################" << endl
-	      << "# Upscaled absolute permeability: " << upscaled_perm << "mD" << endl
+	      << "# Upscaled absolute permeability (arithmetic): " << upscaled_perm_a << "mD" << endl
+	      << "# Upscaled absolute permeability (harmonic):   " << upscaled_perm_h << "mD" << endl
 	      << "######################################################################" << endl
-	      << "# Capillary limit\t\t\t\tViscous limit" << endl
-	      << "# Sw\t\tkrw\t\tkro\t\tSw\t\tkrw\t\tkro" << endl;
+	      << "# Capillary limit\t\t\t\t\t\t\t\tViscous limit" << endl
+	      << "# Sw\t\tkrw_a\t\tkro_a\t\tkrw_h\t\tkro_h\t\tSw\t\tkrw_a\t\tkro_a\t\tkrw_h\t\tkro_h" << endl;
     outputtmp << setprecision(atoi(options["outputprecision"].c_str())) << fixed;
     for (int i = 0; i < points; ++i) {
-	outputtmp << upscaled_sat_CE[i] << "\t" << upscaled_krw_CE[i] << "\t" << upscaled_kro_CE[i] << "\t" 
-	          << upscaled_sat_VL[i] << "\t" << upscaled_krw_VL[i] << "\t" << upscaled_kro_VL[i] << endl; 
+	outputtmp << upscaled_sat_CE[i] << "\t" << upscaled_krw_CE_a[i] << "\t" << upscaled_kro_CE_a[i] << "\t" 
+		  << upscaled_krw_CE_h[i] << "\t" << upscaled_kro_CE_h[i] << "\t" 
+		  << upscaled_sat_VL[i] << "\t" << upscaled_krw_VL_a[i] << "\t" << upscaled_kro_VL_a[i] << "\t" 
+		  << upscaled_krw_VL_h[i] << "\t" << upscaled_kro_VL_h[i] << endl;
     }
 
     /* Print to screen (and file)*/
