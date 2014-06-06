@@ -69,12 +69,16 @@
 #include <map>
 #include <sys/utsname.h>
 
-#ifdef HAVE_MPI
-#include <mpi.h>
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
 #endif
 
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
+#include <opm/upscaling/ParserAdditions.hpp>
 
 using namespace Opm;
 using namespace std;
@@ -147,16 +151,13 @@ void usage()
 
 void usageandexit() {
     usage();
-#ifdef HAVE_MPI
-    MPI_Finalize();
-#endif
     exit(1);
 }
 
 // Assumes that permtensor_t use C ordering.
 double getVoigtValue(const SinglePhaseUpscaler::permtensor_t& K, int voigt_idx)
 {
-    ASSERT(K.numRows() == 3 && K.numCols() == 3);
+    assert(K.numRows() == 3 && K.numCols() == 3);
     switch (voigt_idx) {
     case 0: return K.data()[0];
     case 1: return K.data()[4];
@@ -177,7 +178,7 @@ double getVoigtValue(const SinglePhaseUpscaler::permtensor_t& K, int voigt_idx)
 // Assumes that permtensor_t use C ordering.
 void setVoigtValue(SinglePhaseUpscaler::permtensor_t& K, int voigt_idx, double val)
 {
-    ASSERT(K.numRows() == 3 && K.numCols() == 3);
+    assert(K.numRows() == 3 && K.numCols() == 3);
     switch (voigt_idx) {
     case 0: K.data()[0] = val; break;
     case 1: K.data()[4] = val; break;
@@ -195,6 +196,7 @@ void setVoigtValue(SinglePhaseUpscaler::permtensor_t& K, int voigt_idx, double v
 }
 
 int main(int varnum, char** vararg)
+try
 {
    // Variables used for timing/profiling:
    clock_t start, finish;
@@ -206,13 +208,11 @@ int main(int varnum, char** vararg)
     * Process command line options
     */
 
-   int mpi_rank = 0;
+   Dune::MPIHelper& mpi=Dune::MPIHelper::instance(varnum, vararg);
+   const int mpi_rank = mpi.rank();
 #ifdef HAVE_MPI
-   int mpi_nodecount = 1;
-   MPI_Init(&varnum, &vararg);
-   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &mpi_nodecount);
-#endif 
+   const int mpi_nodecount = mpi.size();
+#endif
    bool isMaster = (mpi_rank == 0);
    if (varnum == 1) { /* If no arguments supplied ("upscale_relperm" is the first "argument") */
       usage();
@@ -245,15 +245,15 @@ int main(int varnum, char** vararg)
    options.insert(make_pair("linsolver_tolerance", "1e-12"));  // residual tolerance for linear solver
    options.insert(make_pair("linsolver_verbosity", "0"));     // verbosity level for linear solver
    options.insert(make_pair("linsolver_max_iterations", "0"));         // Maximum number of iterations allow, specify 0 for default
-   options.insert(make_pair("linsolver_prolongate_factor", "1.6")); // Factor to scale the prolongate coarse grid correction,
-   options.insert(make_pair("linsolver_type",      "1"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG
+   options.insert(make_pair("linsolver_prolongate_factor", "1.0")); // Factor to scale the prolongate coarse grid correction,
+   options.insert(make_pair("linsolver_type",      "3"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG, 2 = KAMG/CG, 3 = FastAMG/CG
    options.insert(make_pair("fluids",              "ow")); // wheater upscaling for oil/water (ow) or gas/oil (go)
    options.insert(make_pair("krowxswirr",          "-1")); // relative permeability in x direction of oil in corresponding oil/water system
    options.insert(make_pair("krowyswirr",          "-1")); // relative permeability in y direction of oil in corresponding oil/water system
    options.insert(make_pair("krowzswirr",          "-1")); // relative permeability in z direction of oil in corresponding oil/water system
    options.insert(make_pair("doEclipseCheck",      "true")); // Check if minimum relpermvalues in input are zero (specify critical saturations)
    options.insert(make_pair("critRelpermThresh",   "1e-6")); // Threshold for setting minimum relperm to 0 (thus specify critical saturations)
-   options.insert(make_pair("linsolver_smooth_steps", "2")); // Number of pre and postsmoothing steps for AMG
+   options.insert(make_pair("linsolver_smooth_steps", "1")); // Number of pre and postsmoothing steps for AMG
 
    // Conversion factor, multiply mD numbers with this to get m² numbers
    const double milliDarcyToSqMetre = 9.869233e-16;
@@ -385,33 +385,35 @@ int main(int varnum, char** vararg)
 
    if (isMaster) cout << "Parsing Eclipse file <" << ECLIPSEFILENAME << "> ... ";
    flush(cout);   start = clock();
-   Opm::EclipseGridParser eclParser(ECLIPSEFILENAME, false);
+   Opm::ParserPtr parser(new Opm::Parser());
+   Opm::addNonStandardUpscalingKeywords(parser);
+   Opm::DeckConstPtr deck(parser->parseFile(ECLIPSEFILENAME));
    finish = clock();   timeused = (double(finish)-double(start))/CLOCKS_PER_SEC;
    if (isMaster) cout << " (" << timeused <<" secs)" << endl;
 
    // Check that we have the information we need from the eclipse file:  
-   if (! (eclParser.hasField("SPECGRID") && eclParser.hasField("COORD") && eclParser.hasField("ZCORN")  
-          && eclParser.hasField("PORO") && eclParser.hasField("PERMX"))) {
+   if (! (deck->hasKeyword("SPECGRID") && deck->hasKeyword("COORD") && deck->hasKeyword("ZCORN")  
+          && deck->hasKeyword("PORO") && deck->hasKeyword("PERMX"))) {
        if (isMaster) cerr << "Error: Did not find SPECGRID, COORD, ZCORN, PORO and PERMX in Eclipse file " << ECLIPSEFILENAME << endl;  
        usageandexit();  
    }  
 
-   vector<double>  poros = eclParser.getFloatingPointValue("PORO");  
-   vector<double> permxs = eclParser.getFloatingPointValue("PERMX");  
-   vector<double> zcorns = eclParser.getFloatingPointValue("ZCORN");
-   vector<int>  griddims = eclParser.getSPECGRID().dimensions;
-   int x_res = griddims[0];
-   int y_res = griddims[1];
-   int z_res = griddims[2];
+   vector<double>  poros = deck->getKeyword("PORO")->getSIDoubleData();  
+   vector<double> permxs = deck->getKeyword("PERMX")->getSIDoubleData();  
+   vector<double> zcorns = deck->getKeyword("ZCORN")->getSIDoubleData();
 
-   
+   Opm::DeckRecordConstPtr specgridRecord = deck->getKeyword("SPECGRID")->getRecord(0);
+   int x_res = specgridRecord->getItem("NX")->getInt(0);
+   int y_res = specgridRecord->getItem("NY")->getInt(0);
+   int z_res = specgridRecord->getItem("NZ")->getInt(0);
+
    // Load anisotropic (only diagonal supported) input if present in grid
    vector<double> permys, permzs;
    
-   if (eclParser.hasField("PERMY") && eclParser.hasField("PERMZ")) {
+   if (deck->hasKeyword("PERMY") && deck->hasKeyword("PERMZ")) {
        anisotropic_input = true;
-       permys = eclParser.getFloatingPointValue("PERMY");
-       permzs = eclParser.getFloatingPointValue("PERMZ");
+       permys = deck->getKeyword("PERMY")->getSIDoubleData();
+       permzs = deck->getKeyword("PERMZ")->getSIDoubleData();
        if (isMaster) cout << "Info: PERMY and PERMZ present, going into anisotropic input mode, no J-functions\n"; 
        if (isMaster) cout << "      Options -relPermCurve and -jFunctionCurve is meaningless.\n"; 
    } 
@@ -420,11 +422,11 @@ int main(int varnum, char** vararg)
    /* Initialize a default satnums-vector with only "ones" (meaning only one rocktype) */ 
    vector<int> satnums(poros.size(), 1); 
    
-   if (eclParser.hasField("SATNUM")) { 
-       satnums = eclParser.getIntegerValue("SATNUM"); 
+   if (deck->hasKeyword("SATNUM")) { 
+       satnums = deck->getKeyword("SATNUM")->getIntData(); 
    } 
-   else if (eclParser.hasField("ROCKTYPE")) { 
-       satnums = eclParser.getIntegerValue("ROCKTYPE"); 
+   else if (deck->hasKeyword("ROCKTYPE")) { 
+       satnums = deck->getKeyword("ROCKTYPE")->getIntData(); 
    } 
    else { 
        if (isMaster) cout << "Warning: SATNUM or ROCKTYPE not found in input file, assuming only one rocktype" << endl; 
@@ -945,8 +947,7 @@ int main(int varnum, char** vararg)
    int smooth_steps = atoi(options["linsolver_smooth_steps"].c_str());
    double linsolver_prolongate_factor = atof(options["linsolver_prolongate_factor"].c_str());
    bool twodim_hack = false;
-   eclParser.convertToSI();
-   upscaler.init(eclParser, boundaryCondition,
+   upscaler.init(deck, boundaryCondition,
                  Opm::unit::convert::from(minPerm, Opm::prefix::milli*Opm::unit::darcy),
                  ztol, linsolver_tolerance,
                  linsolver_verbosity, linsolver_type, twodim_hack,
@@ -2043,9 +2044,10 @@ int main(int varnum, char** vararg)
 
    }
 
-#if HAVE_MPI
-   MPI_Finalize();
-#endif
-
    return 0;
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

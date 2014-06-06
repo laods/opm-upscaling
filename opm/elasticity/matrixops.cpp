@@ -1,14 +1,26 @@
 //==============================================================================
 //!
-//! \file matrixops_impl.hpp
+//! \file matrixops.cpp
 //!
 //! \date Nov 9 2011
 //!
 //! \author Arne Morten Kvarving / SINTEF
 //!
-//! \brief Helper class with some matrix operations - template implementations
+//! \brief Helper class with some matrix operations
 //!
 //==============================================================================
+
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "matrixops.hpp"
+
+#include <iostream>
+#include <fstream>
+
+namespace Opm {
+namespace Elasticity {
 
 void MatrixOps::fromAdjacency(Matrix& A, const std::vector< std::set<int> >& adj,
                               int rows, int cols)
@@ -261,3 +273,5 @@ Matrix MatrixOps::extractBlock(const Matrix& A, size_t r0, size_t N,
 
   return result;
 }
+
+}}

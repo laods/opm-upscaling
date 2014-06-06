@@ -35,11 +35,13 @@
 #include <config.h>
 
 #include <opm/core/io/eclipse/CornerpointChopper.hpp>
-#include <opm/core/io/eclipse/EclipseGridParser.hpp>
 #include <opm/core/io/eclipse/EclipseGridInspector.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
 #include <opm/porsol/common/setupBoundaryConditions.hpp>
 #include <opm/core/utility/Units.hpp>
+
+#include <opm/parser/eclipse/Parser/Parser.hpp>
+#include <opm/parser/eclipse/Deck/Deck.hpp>
 
 #include <ios>
 #include <iomanip>
@@ -49,8 +51,15 @@
 #include <fstream>
 #include <iostream>
 
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 int main(int argc, char** argv)
+try
 {
    if (argc == 1) {
         std::cout << "Usage: cpregularize gridfilename=filename.grdecl [ires=5] [jres=5] [zres=5] " << std::endl;
@@ -59,6 +68,8 @@ int main(int argc, char** argv)
         std::cout << "       [resultgrid=regularizedgrid.grdecl]" << std::endl;
         exit(1);
     }
+
+    Dune::MPIHelper::instance(argc, argv);
   
     Opm::parameter::ParameterGroup param(argc, argv);
     std::string gridfilename = param.get<std::string>("gridfilename");
@@ -109,9 +120,10 @@ int main(int argc, char** argv)
 
 
     // Original x/y resolution in terms of coordinate values (not indices)
-    Opm::EclipseGridParser gridparser(gridfilename); // TODO: REFACTOR!!!! it is stupid to parse this again
-    Opm::EclipseGridInspector gridinspector(gridparser);
-    std::tr1::array<double, 6> gridlimits=gridinspector.getGridLimits();
+    Opm::ParserPtr parser(new Opm::Parser);
+    Opm::DeckConstPtr deck(parser->parseFile(gridfilename)); // TODO: REFACTOR!!!! it is stupid to parse this again
+    Opm::EclipseGridInspector gridinspector(deck);
+    std::array<double, 6> gridlimits=gridinspector.getGridLimits();
     double finegridxresolution = (gridlimits[1]-gridlimits[0])/dims[0];
     double finegridyresolution = (gridlimits[3]-gridlimits[2])/dims[1];
 
@@ -153,14 +165,15 @@ int main(int argc, char** argv)
         for (int jidx_c=0; jidx_c < jres; ++jidx_c) {
             for (int iidx_c=0; iidx_c < ires; ++iidx_c) {
                 ch.chop(iidx_f[iidx_c], iidx_f[iidx_c+1],
-			jidx_f[jidx_c], jidx_f[jidx_c+1],
-			zcorn_c[zidx_c], zcorn_c[zidx_c+1],
-			false);
+                        jidx_f[jidx_c], jidx_f[jidx_c+1],
+                        zcorn_c[zidx_c], zcorn_c[zidx_c+1],
+                        false);
+
+                OPM_THROW(std::logic_error, "Sub-decks not are not implemented by opm-parser. Refactor the calling code!?");
 		try {
-		    Opm::EclipseGridParser subparser = ch.subparser();
-                    subparser.convertToSI(); // Because the upscaler expects SI units.
+		    Opm::DeckConstPtr subdeck = ch.subDeck();
 		    Opm::SinglePhaseUpscaler upscaler;
-		    upscaler.init(subparser, Opm::SinglePhaseUpscaler::Fixed, minpermSI, z_tolerance,
+		    upscaler.init(subdeck, Opm::SinglePhaseUpscaler::Fixed, minpermSI, z_tolerance,
 				  residual_tolerance, linsolver_verbosity, linsolver_type, false);
             
 		    Opm::SinglePhaseUpscaler::permtensor_t upscaled_K = upscaler.upscaleSinglePhase();
@@ -258,4 +271,9 @@ int main(int argc, char** argv)
     
     out.close();
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+
 

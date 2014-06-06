@@ -12,6 +12,8 @@
 #ifndef MATRIXOPS_HPP_
 #define MATRIXOPS_HPP_
 
+#include <dune/common/fmatrix.hh> 
+#include <dune/common/dynmatrix.hh>
 #include <dune/istl/bcrsmatrix.hh>
 
 namespace Opm {
@@ -83,8 +85,6 @@ class MatrixOps {
     //! \details This is only useful for debugging as the files grow very big
     static void saveAsc(const Matrix& A, const std::string& file);
 };
-
-#include "matrixops_impl.hpp"
 
 }
 }

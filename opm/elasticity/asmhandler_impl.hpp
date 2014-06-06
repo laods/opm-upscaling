@@ -9,6 +9,14 @@
 //! \brief Class handling finite element assembly - template implementations
 //!
 //==============================================================================
+#ifndef ASMHANDLER_IMPL_HPP_
+#define ASMHANDLER_IMPL_HPP_
+
+#include <dune/common/version.hh>
+#include <iostream>
+
+namespace Opm {
+namespace Elasticity {
 
   template<class GridType>
 void ASMHandler<GridType>::initForAssembly()
@@ -16,10 +24,6 @@ void ASMHandler<GridType>::initForAssembly()
   resolveMPCChains();
   preprocess();
   determineAdjacencyPattern();
-
-  // workaround what looks to be a bug in bcrs matrix
-  A.setBuildMode(Matrix::random);
-  A.endrowsizes();
 
   MatrixOps::fromAdjacency(A,adjacencyPattern,
                            adjacencyPattern.size(),adjacencyPattern.size());
@@ -86,7 +90,7 @@ void ASMHandler<GridType>::addElement(
 {
   if (!b2)
     b2 = &b;
-  const LeafIndexSet& set = gv.leafView().indexSet();
+  const LeafIndexSet& set = gv.leafGridView().indexSet();
   for (int i=0;i<esize/dim;++i) {
     int index1 = set.subIndex(*cell,i,dim);
     fixIt it = fixedNodes.find(index1);
@@ -112,10 +116,11 @@ void ASMHandler<GridType>::extractValues(Dune::FieldVector<double,comp>& v,
                                          const LeafIterator& it)
 {
   v = 0;
-  const LeafIndexSet& set = gv.leafView().indexSet();
+  const LeafIndexSet& set = gv.leafGridView().indexSet();
   Dune::GeometryType gt = it->type();
-  const Dune::template GenericReferenceElement<double,dim> &ref =
-                      Dune::GenericReferenceElements<double,dim>::general(gt);
+
+  const Dune::template ReferenceElement<double,dim> &ref =
+                      Dune::ReferenceElements<double,dim>::general(gt);
   int vertexsize = ref.size(dim);
   int l=0;
   for (int i=0;i<vertexsize;++i) {
@@ -350,7 +355,7 @@ void ASMHandler<GridType>::nodeAdjacency(const LeafIterator& it,
 {
   if (row == -1)
     return;
-  const LeafIndexSet& set = gv.leafView().indexSet();
+  const LeafIndexSet& set = gv.leafGridView().indexSet();
   for (int j=0;j<vertexsize;++j) {
     int indexj = set.subIndex(*it,j,dim);
     for (int l=0;l<dim;++l) {
@@ -375,15 +380,16 @@ void ASMHandler<GridType>::determineAdjacencyPattern()
   std::cout << "\tsetting up sparsity pattern..." << std::endl;
   LoggerHelper help(gv.size(0), 5, 50000);
 
-  const LeafIndexSet& set = gv.leafView().indexSet();
-  LeafIterator itend = gv.leafView().template end<0>();
+  const LeafIndexSet& set = gv.leafGridView().indexSet();
+  LeafIterator itend = gv.leafGridView().template end<0>();
 
   // iterate over cells
   int cell=0;
-  for (LeafIterator it = gv.leafView().template begin<0>(); it != itend; ++it, ++cell) {
+  for (LeafIterator it = gv.leafGridView().template begin<0>(); it != itend; ++it, ++cell) {
     Dune::GeometryType gt = it->type();
-    const Dune::template GenericReferenceElement<double,dim>& ref =
-      Dune::GenericReferenceElements<double,dim>::general(gt);
+
+    const Dune::template ReferenceElement<double,dim>& ref =
+      Dune::ReferenceElements<double,dim>::general(gt);
 
     int vertexsize = ref.size(dim);
     for (int i=0; i < vertexsize; i++) {
@@ -400,6 +406,11 @@ void ASMHandler<GridType>::determineAdjacencyPattern()
           nodeAdjacency(it,vertexsize,meqn[indexi*dim+k]);
       }
     }
-    help.log(cell, "\t\t... still processing ... cell ");
+    if (cell % 10000 == 0)
+      help.log(cell, "\t\t... still processing ... cell ");
   }
 }
+
+}} // namespace Opm, Elasticity
+
+#endif

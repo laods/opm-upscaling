@@ -1,11 +1,11 @@
 //===========================================================================
 //
-// File: implicit_steadystate_test.cpp
+// File: steadystate_test.cpp
 //
-// Created: Thu Jul 22 15:36:52 2010
+// Created: Fri Aug 28 14:11:03 2009
 //
 // Author(s): Atgeirr F Rasmussen <atgeirr@sintef.no>
-//            Bård Skaflestad     <bard.skaflestad@sintef.no>
+//            Bï¿½rd Skaflestad     <bard.skaflestad@sintef.no>
 //
 // $Date$
 //
@@ -14,8 +14,8 @@
 //===========================================================================
 
 /*
-  Copyright 2010 SINTEF ICT, Applied Mathematics.
-  Copyright 2010 Statoil ASA.
+  Copyright 2009, 2010 SINTEF ICT, Applied Mathematics.
+  Copyright 2009, 2010 Statoil ASA.
 
   This file is part of The Open Reservoir Simulator Project (OpenRS).
 
@@ -34,17 +34,26 @@
 */
 #include <config.h>
 
-#define VERBOSE
+
+//#define VERBOSE
 
 #include <opm/upscaling/SteadyStateUpscalerManager.hpp>
 #include <opm/upscaling/UpscalingTraits.hpp>
+#include <iostream>
 
 using namespace Opm;
 
 int main(int argc, char** argv)
+try
 {
-    // Initialize.
-    Opm::parameter::ParameterGroup param(argc, argv);
-    SteadyStateUpscalerManager<SimulatorTraits<Isotropic, ImplicitCap> > mgr;
-    mgr.upscale(param);
+     //Initialize.
+     Opm::parameter::ParameterGroup param(argc, argv);
+     //MPIHelper::instance(argc,argv);
+     SteadyStateUpscalerManager<UpscalingTraitsBasic> mgr;
+     mgr.upscale(param);
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

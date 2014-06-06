@@ -12,6 +12,8 @@
 #ifndef ELASTICITY_HPP_
 #define ELASTICITY_HPP_
 
+#include <dune/common/fmatrix.hh>
+
 namespace Opm {
 namespace Elasticity {
 
@@ -66,9 +68,17 @@ class Elasticity {
     const GridType& gv;
 };
 
-#include "elasticity_impl.hpp"
+//! \brief Compute the elastic wave velocities
+//! \brief C The elastic tensor
+//! \brief phi dip angle
+//! \brief theta Azimuth angle
+//! \brief density Density of material
+Dune::FieldVector<double,3> waveSpeeds(const Dune::FieldMatrix<double,6,6>& C, double phi,
+                                       double theta, double density);
 
 }
 }
+
+#include "elasticity_impl.hpp"
 
 #endif

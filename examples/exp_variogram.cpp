@@ -50,9 +50,18 @@
 #include <fstream>
 #include <iostream>
 
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 int main(int argc, char** argv)
+try
 {
+    Dune::MPIHelper::instance(argc, argv);
+
     Opm::parameter::ParameterGroup param(argc, argv);
     std::string gridfilename = param.get<std::string>("gridfilename");
     Opm::CornerPointChopper ch(gridfilename);
@@ -163,11 +172,10 @@ int main(int argc, char** argv)
         int jstart_1 = rj();
         double zstart_1 = rz();
         ch.chop(istart_1, istart_1 + ilen, jstart_1, jstart_1 + jlen, zstart_1, zstart_1 + zlen, false);
-	
-        Opm::EclipseGridParser subparser_1 = ch.subparser();
-        subparser_1.convertToSI();
+
+        Opm::DeckConstPtr subdeck_1 = ch.subDeck();
         Opm::SinglePhaseUpscaler upscaler_1;
-        upscaler_1.init(subparser_1, Opm::SinglePhaseUpscaler::Fixed, minpermSI, z_tolerance,
+        upscaler_1.init(subdeck_1, Opm::SinglePhaseUpscaler::Fixed, minpermSI, z_tolerance,
 			residual_tolerance, linsolver_verbosity, linsolver_type, false);
         Opm::SinglePhaseUpscaler::permtensor_t upscaled_K_1 = upscaler_1.upscaleSinglePhase();
         upscaled_K_1 *= (1.0/(Opm::prefix::milli*Opm::unit::darcy));
@@ -188,10 +196,9 @@ int main(int argc, char** argv)
         }   
         ch.chop(istart_2, istart_2 + ilen, jstart_2, jstart_2 + jlen, zstart_2, zstart_2 + zlen, false);
 	
-        Opm::EclipseGridParser subparser_2 = ch.subparser();
-	subparser_2.convertToSI();
+        Opm::DeckConstPtr subdeck_2 = ch.subDeck();
         Opm::SinglePhaseUpscaler upscaler_2;
-        upscaler_2.init(subparser_2, Opm::SinglePhaseUpscaler::Fixed, minpermSI, z_tolerance,
+        upscaler_2.init(subdeck_2, Opm::SinglePhaseUpscaler::Fixed, minpermSI, z_tolerance,
 			residual_tolerance, linsolver_verbosity, linsolver_type, false);
         Opm::SinglePhaseUpscaler::permtensor_t upscaled_K_2 = upscaler_2.upscaleSinglePhase();
         upscaled_K_2 *= (1.0/(Opm::prefix::milli*Opm::unit::darcy));
@@ -253,3 +260,8 @@ int main(int argc, char** argv)
     
     std::cout << outputtmp.str();
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

@@ -41,7 +41,17 @@
 #include <opm/porsol/common/SimulatorTraits.hpp>
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
+#include <opm/upscaling/ParserAdditions.hpp>
 #include <sys/utsname.h>
+#include <iostream>
+
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
+
 namespace Opm{
 	template <class IsotropyPolicy>
     struct Implicit
@@ -79,7 +89,7 @@ void usageandexit() {
 // Assumes that permtensor_t use C ordering.
 double getVoigtValue(const SinglePhaseUpscaler::permtensor_t& K, int voigt_idx)
 {
-    ASSERT(K.numRows() == 3 && K.numCols() == 3);
+    assert(K.numRows() == 3 && K.numCols() == 3);
     switch (voigt_idx) {
     case 0: return K.data()[0];
     case 1: return K.data()[4];
@@ -103,11 +113,11 @@ std::vector<std::vector<double> > getExtremeSats(std::string rock_list, std::vec
     }
     std::ifstream rl(rock_list.c_str());
     if (!rl) {
-        THROW("Could not open file " << rock_list);
+        OPM_THROW(std::runtime_error, "Could not open file " << rock_list);
     }
     int num_rocks = -1;
     rl >> num_rocks;
-    ASSERT(num_rocks >= 1);
+    assert(num_rocks >= 1);
     std::vector<std::vector<double> > rocksatendp;
     rocksatendp.resize(num_rocks);
     for (int i = 0; i < num_rocks; ++i) {
@@ -124,7 +134,7 @@ std::vector<std::vector<double> > getExtremeSats(std::string rock_list, std::vec
         rockfilelist.push_back(rockfilename);
         std::ifstream rock_stream(rockfilename.c_str());
         if (!rock_stream) {
-            THROW("Could not open file " << rockfilename);
+            OPM_THROW(std::runtime_error, "Could not open file " << rockfilename);
         }
         
         if (! anisorocks) { //Isotropic input rocks (Sw Krw Kro J)
@@ -140,7 +150,7 @@ std::vector<std::vector<double> > getExtremeSats(std::string rock_list, std::vec
             rocksatendp[i][0] = Jtmp.getMinimumX().first;
             rocksatendp[i][1] = Jtmp.getMaximumX().first;
             if (rocksatendp[i][0] < 0 || rocksatendp[i][0] > 1) {
-                THROW("Minimum rock saturation (" << rocksatendp[i][0] << ") not sane for rock " 
+                OPM_THROW(std::runtime_error, "Minimum rock saturation (" << rocksatendp[i][0] << ") not sane for rock " 
                       << rockfilename << "." << std::endl << "Did you forget to specify anisotropicrocks=true ?");  
             }
         }
@@ -170,18 +180,23 @@ std::string toString(T const& value) {
 
 
 int main(int argc, char** argv)
+try
 {
+    Dune::MPIHelper::instance(argc, argv);
+
     if (argc == 1) {
         usageandexit();
     }
     // Initialize.
     Opm::parameter::ParameterGroup param(argc, argv);
     std::string gridfilename = param.get<std::string>("gridfilename");
-    Opm::EclipseGridParser eclparser(gridfilename, false);
+    Opm::ParserPtr parser(new Opm::Parser());
+    Opm::addNonStandardUpscalingKeywords(parser);
+    Opm::DeckConstPtr deck(parser->parseFile(gridfilename));
 
     // Check that we have the information we need from the eclipse file:  
-    if (! (eclparser.hasField("SPECGRID") && eclparser.hasField("COORD") && eclparser.hasField("ZCORN")  
-           && eclparser.hasField("PORO") && eclparser.hasField("PERMX"))) {
+    if (! (deck->hasKeyword("SPECGRID") && deck->hasKeyword("COORD") && deck->hasKeyword("ZCORN")  
+           && deck->hasKeyword("PORO") && deck->hasKeyword("PERMX"))) {
         std::cerr << "Error: Did not find SPECGRID, COORD, ZCORN, PORO and PERMX in Eclipse file " << gridfilename << std::endl;  
         usageandexit();  
     }  
@@ -250,15 +265,15 @@ int main(int argc, char** argv)
     std::vector<std::string> rockfiles;
     std::vector<std::vector<double> > rocksatendpoints_ = getExtremeSats(rock_list,rockfiles);
 
-    std::vector<double>  poros = eclparser.getFloatingPointValue("PORO");  
+    std::vector<double>  poros = deck->getKeyword("PORO")->getSIDoubleData();  
     // Anisotropic relperm not yet implemented in steadystate_implicit
     //bool anisorocks = param.getDefault("anisotropicrocks", false);
     std::vector<int> satnums(poros.size(), 1); 
-    if (eclparser.hasField("SATNUM")) { 
-        satnums = eclparser.getIntegerValue("SATNUM"); 
+    if (deck->hasKeyword("SATNUM")) { 
+        satnums = deck->getKeyword("SATNUM")->getIntData(); 
     } 
-    else if (eclparser.hasField("ROCKTYPE")) { 
-        satnums = eclparser.getIntegerValue("ROCKTYPE"); 
+    else if (deck->hasKeyword("ROCKTYPE")) { 
+        satnums = deck->getKeyword("ROCKTYPE")->getIntData(); 
     } 
     else { 
         std::cout << "Warning: SATNUM or ROCKTYPE not found in input file, assuming only one rocktype" << std::endl; 
@@ -272,7 +287,7 @@ int main(int argc, char** argv)
         usageandexit();
     }
     Opm::SinglePhaseUpscaler spupscaler; // needed to access porosities and cell volumes
-    spupscaler.init(eclparser, Opm::SinglePhaseUpscaler::Fixed,
+    spupscaler.init(deck, Opm::SinglePhaseUpscaler::Fixed,
                     0.0,0.0, linsolver_tolerance, linsolver_verbosity, linsolver_type, false, linsolver_maxit,
                     linsolver_prolongate_factor, linsolver_smooth_steps);
     std::vector<double>  cellPoreVolumes; 
@@ -424,6 +439,10 @@ int main(int argc, char** argv)
     //SteadyStateUpscalerManagerImplicit<upscaler_t> mgr;
     //mgr.upscale(param);
     
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
 }
 
 // TODO

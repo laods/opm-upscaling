@@ -53,7 +53,14 @@
 #include <sys/utsname.h>
 
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
+#include <opm/upscaling/ParserAdditions.hpp>
+
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
 #include <dune/common/mpihelper.hh>
+#endif
 
 using namespace std;
 
@@ -83,8 +90,7 @@ void usage() {
    @return int
 */
 int upscale(int varnum, char** vararg) {
-    Dune::MPIHelper& mpi=Dune::MPIHelper::instance(varnum, vararg);
-    mpi.rank();
+    Dune::MPIHelper::instance(varnum, vararg);
     if (varnum ==  1) { // If no arguments supplied ("upscale_perm" is the first argument)
         cout << "Error: No eclipsefile provided" << endl;
         usage();
@@ -98,9 +104,9 @@ int upscale(int varnum, char** vararg) {
     options.insert(make_pair("linsolver_tolerance", "1e-8"));  // residual tolerance for linear solver
     options.insert(make_pair("linsolver_verbosity", "0"));     // verbosity level for linear solver
     options.insert(make_pair("linsolver_max_iterations", "0"));         // Maximum number of iterations allow, specify 0 for default
-    options.insert(make_pair("linsolver_prolongate_factor", "1.6")); // Factor to scale the prolongate coarse grid correction
-    options.insert(make_pair("linsolver_type",      "1"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG
-    options.insert(make_pair("linsolver_smooth_steps", "2")); // Number of pre and postsmoothing steps for AMG
+    options.insert(make_pair("linsolver_prolongate_factor", "1.0")); // Factor to scale the prolongate coarse grid correction
+    options.insert(make_pair("linsolver_type",      "3"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG, 2 = KAMG/CG, 3 = FastAMG/CG
+    options.insert(make_pair("linsolver_smooth_steps", "1")); // Number of pre and postsmoothing steps for AMG
 
     // Parse options from command line
     int eclipseindex = 1; // Index for the eclipsefile in the command line options
@@ -185,22 +191,16 @@ int upscale(int varnum, char** vararg) {
      */
     cout << "Parsing Eclipse file <" << ECLIPSEFILENAME << "> ... ";
     flush(cout);   start = clock();
-    Opm::EclipseGridParser * eclParser_p;
-    try {
-        eclParser_p = new Opm::EclipseGridParser(ECLIPSEFILENAME);
-    }
-    catch (...) {
-        cout << "Error: Filename " << ECLIPSEFILENAME << " does not look like an eclipse grid file." << endl;
-        usage();
-        exit(1);
-    }
-    Opm::EclipseGridParser& eclParser = *eclParser_p;
+
+    Opm::ParserPtr parser(new Opm::Parser());
+    Opm::addNonStandardUpscalingKeywords(parser);
+    Opm::DeckConstPtr deck(parser->parseFile(ECLIPSEFILENAME));
 
     finish = clock();   timeused = (double(finish)-double(start))/CLOCKS_PER_SEC;
     cout << " (" << timeused <<" secs)" << endl;
  
     // Check that we have the information we need from the eclipse file, we will check PERM-fields later
-    if (! (eclParser.hasField("SPECGRID") && eclParser.hasField("COORD") && eclParser.hasField("ZCORN"))) {  
+    if (! (deck->hasKeyword("SPECGRID") && deck->hasKeyword("COORD") && deck->hasKeyword("ZCORN"))) {  
         cerr << "Error: Did not find SPECGRID, COORD and ZCORN in Eclipse file " << ECLIPSEFILENAME << endl;  
         usage();  
         exit(1);  
@@ -236,7 +236,7 @@ int upscale(int varnum, char** vararg) {
     if (isFixed || isLinear)  {
         cout << "Tesselating non-periodic grid ...";
         start = clock();
-        upscaler_nonperiodic.init(eclParser, 
+        upscaler_nonperiodic.init(deck, 
                                   isFixed ? SinglePhaseUpscaler::Fixed : SinglePhaseUpscaler::Linear,
                                   minPerm, ztol,  linsolver_tolerance, linsolver_verbosity, linsolver_type, 
                                   twodim_hack, linsolver_maxit, linsolver_prolongate_factor, smooth_steps);
@@ -247,7 +247,7 @@ int upscale(int varnum, char** vararg) {
     if (isPeriodic) {
         cout << "Tesselating periodic grid ...  ";
         start = clock();
-        upscaler_periodic.init(eclParser, SinglePhaseUpscaler::Periodic, minPerm,
+        upscaler_periodic.init(deck, SinglePhaseUpscaler::Periodic, minPerm,
                                ztol,  linsolver_tolerance, linsolver_verbosity, linsolver_type, twodim_hack,
                                linsolver_maxit, linsolver_prolongate_factor, smooth_steps);
         finish = clock();
@@ -265,7 +265,7 @@ int upscale(int varnum, char** vararg) {
      * in terms of cpu-resources (compared to permeability upscaling).
      */
     double upscaledPorosity = 0.0;
-    if (eclParser.hasField("PORO")) {
+    if (deck->hasKeyword("PORO")) {
         if (isPeriodic) {
             upscaledPorosity = upscaler_periodic.upscalePorosity();
         } else {
@@ -386,6 +386,11 @@ int upscale(int varnum, char** vararg) {
    @param vararg Input arguments
    @return int
 */
-int main(int varnum, char** vararg) {
+int main(int varnum, char** vararg) try {
     return upscale(varnum, vararg);
 }
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

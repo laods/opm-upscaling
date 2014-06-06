@@ -29,7 +29,6 @@
 #include <numeric>
 #include <sys/utsname.h>
 
-#include <opm/core/io/eclipse/EclipseGridParser.hpp>
 #include <opm/core/io/eclipse/EclipseGridInspector.hpp>
 #include <opm/core/utility/parameters/ParameterGroup.hpp>
 
@@ -38,17 +37,25 @@
 #include <opm/porsol/common/setupBoundaryConditions.hpp>
 #include <opm/core/utility/Units.hpp>
 
-
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 using namespace std;
 
 
-int main(int argc, char** argv) {        
+int main(int argc, char** argv) try {        
     if (argc ==  1) { // If no arguments supplied 
         cout << "Usage: grdecldips gridfilename=foo.grdecl [mincellvolume=1e-8] " << endl;
         cout << "       [listallcells=false] [output=filename.txt]" << endl;
         exit(1);
     } 
+
+    Dune::MPIHelper::instance(argc, argv);
+
     Opm::parameter::ParameterGroup param(argc, argv);
     
     std::string gridfilename = param.get<std::string>("gridfilename");
@@ -61,16 +68,13 @@ int main(int argc, char** argv) {
 	std::cout << "*****     WARNING: Unused parameters:     *****\n";
 	param.displayUsage();
     }
-    
-    //eclParser_p = new Opm::EclipseGridParser(gridfilename);
-    //Opm::EclipseGridParser& eclParser = *eclParser_p;
-    
-    Opm::EclipseGridParser eclParser(gridfilename);
-    
-    Opm::EclipseGridInspector gridinspector(eclParser);
+
+    Opm::ParserPtr parser(new Opm::Parser());
+    Opm::DeckConstPtr deck(parser->parseFile(gridfilename));
+    Opm::EclipseGridInspector gridinspector(deck);
     
     // Check that we have the information we need from the eclipse file, we will check PERM-fields later
-    if (! (eclParser.hasField("SPECGRID") && eclParser.hasField("COORD") && eclParser.hasField("ZCORN"))) {  
+    if (! (deck->hasKeyword("SPECGRID") && deck->hasKeyword("COORD") && deck->hasKeyword("ZCORN"))) {  
         cerr << "Error: Did not find SPECGRID, COORD and ZCORN in Eclipse file " << gridfilename << endl;  
         exit(1);  
     }
@@ -79,7 +83,11 @@ int main(int argc, char** argv) {
      * Find dips for every cell.
      */
 
-    vector<int>  griddims = eclParser.getSPECGRID().dimensions;
+    Opm::DeckRecordConstPtr specgridRecord = deck->getKeyword("SPECGRID")->getRecord(0);
+    vector<int>  griddims(3);
+    griddims[0] = specgridRecord->getItem("NX")->getInt(0);
+    griddims[1] = specgridRecord->getItem("NY")->getInt(0);
+    griddims[2] = specgridRecord->getItem("NZ")->getInt(0);
     vector<double> xdips, ydips, cellvolumes;
     vector<int> cellidxs_i, cellidxs_j, cellidxs_k;
     
@@ -148,4 +156,9 @@ int main(int argc, char** argv) {
     }
     return 0;
     
-};
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+

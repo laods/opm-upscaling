@@ -24,13 +24,24 @@
 
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
 #include <opm/core/utility/Units.hpp>
+#include <iostream>
+
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 using namespace Opm;
 using namespace Opm::prefix;
 using namespace Opm::unit;
 
 int main(int argc, char** argv)
+try
 {
+    Dune::MPIHelper::instance(argc, argv);
+
     Opm::parameter::ParameterGroup param(argc, argv);
     // MPIHelper::instance(argc,argv);
     SinglePhaseUpscaler upscaler;
@@ -39,4 +50,8 @@ int main(int argc, char** argv)
     upscaled_K *= (1.0/(milli*darcy));
     std::cout.precision(15);
     std::cout << "Upscaled K in millidarcy:\n" << upscaled_K << std::endl;
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
 }

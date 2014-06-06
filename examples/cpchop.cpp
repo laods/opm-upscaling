@@ -20,6 +20,7 @@
 #include <config.h>
 
 #include <opm/core/io/eclipse/CornerpointChopper.hpp>
+#include <opm/core/io/eclipse/EclipseGridInspector.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
 #include <opm/porsol/common/setupBoundaryConditions.hpp>
@@ -40,7 +41,15 @@
 #include <cfloat>
 #include <cmath>
 
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
+
 int main(int argc, char** argv)
+try
 {
     if (argc == 1) {
         std::cout << "Usage: cpchop gridfilename=filename.grdecl [subsamples=10] [ilen=5] [jlen=5] " << std::endl;
@@ -51,6 +60,9 @@ int main(int argc, char** argv)
         std::cout << "       [rock_list=] [anisotropicrocks=false]" << std::endl;
         exit(1);
     }
+
+    Dune::MPIHelper::instance(argc, argv);
+
     Opm::parameter::ParameterGroup param(argc, argv);
     std::string gridfilename = param.get<std::string>("gridfilename");
     Opm::CornerPointChopper ch(gridfilename);
@@ -117,13 +129,13 @@ int main(int argc, char** argv)
         // Code copied from ReservoirPropertyCommon.hpp for file reading
         std::ifstream rl(rock_list.c_str());
         if (!rl) {
-            THROW("Could not open file " << rock_list);
+            OPM_THROW(std::runtime_error, "Could not open file " << rock_list);
         }
         int num_rocks = -1;
         rl >> num_rocks;
-        ASSERT(num_rocks >= 1);
-        rocksatendpoints_.resize(num_rocks);
-        jfuncendpoints_.resize(num_rocks);
+        assert(num_rocks >= 1);
+        rocksatendpoints_.resize(num_rocks, std::vector<double>(2, 0.0));
+        jfuncendpoints_.resize(num_rocks, std::vector<double>(2, 0.0));
         // Loop through rock files defined in rock_list and store the data we need
         for (int i = 0; i < num_rocks; ++i) {
             std::string spec;
@@ -138,7 +150,7 @@ int main(int argc, char** argv)
 
             std::ifstream rock_stream(rockfilename.c_str());
             if (!rock_stream) {
-                THROW("Could not open file " << rockfilename);
+                OPM_THROW(std::runtime_error, "Could not open file " << rockfilename);
             }
             
             if (! anisorocks) { //Isotropic input rocks (Sw Krw Kro J)
@@ -166,7 +178,7 @@ int main(int argc, char** argv)
                 rocksatendpoints_[i][0] = Jtmp.getMinimumX().first;
                 rocksatendpoints_[i][1] = Jtmp.getMaximumX().first;
                 if (rocksatendpoints_[i][0] < 0 || rocksatendpoints_[i][0] > 1) {
-                    THROW("Minimum rock saturation (" << rocksatendpoints_[i][0] << ") not sane for rock " 
+                    OPM_THROW(std::runtime_error, "Minimum rock saturation (" << rocksatendpoints_[i][0] << ") not sane for rock " 
                           << rockfilename << "." << std::endl << "Did you forget to specify anisotropicrocks=true ?");  
                 }
             }
@@ -199,7 +211,14 @@ int main(int argc, char** argv)
     double z_tolerance = param.getDefault("z_tolerance", 0.0);
     double residual_tolerance = param.getDefault("residual_tolerance", 1e-8);
     int linsolver_verbosity = param.getDefault("linsolver_verbosity", 0);
+#if DUNE_VERSION_NEWER(DUNE_ISTL, 2, 3) || defined(HAS_DUNE_FAST_AMG)
+    int linsolver_type = param.getDefault("linsolver_type", 3);
+#else
     int linsolver_type = param.getDefault("linsolver_type", 1);
+#endif
+
+    //  Guarantee initialization
+    double Pcmax = -DBL_MAX, Pcmin = DBL_MAX;
 
     // Check that we do not have any user input
     // that goes outside the coordinates described in
@@ -256,6 +275,10 @@ int main(int argc, char** argv)
 
     // Storage for results
     std::vector<double> porosities;
+    std::vector<double> netporosities;
+    std::vector<double> ntgs;
+    std::vector<double> swcrs;
+    std::vector<double> sowcrs;
     std::vector<double> permxs;
     std::vector<double> permys;
     std::vector<double> permzs;
@@ -292,11 +315,10 @@ int main(int argc, char** argv)
 
         try { /* The upscaling may fail to converge on icky grids, lets just pass by those */
             if (upscale) {
-                Opm::EclipseGridParser subparser = ch.subparser();
-                subparser.convertToSI();
+                Opm::DeckConstPtr subdeck = ch.subDeck();
                 Opm::SinglePhaseUpscaler upscaler;
                 
-                upscaler.init(subparser, bctype, minpermSI, z_tolerance,
+                upscaler.init(subdeck, bctype, minpermSI, z_tolerance,
                               residual_tolerance, linsolver_verbosity, linsolver_type, false);
 
                 Opm::SinglePhaseUpscaler::permtensor_t upscaled_K = upscaler.upscaleSinglePhase();
@@ -304,31 +326,38 @@ int main(int argc, char** argv)
 
 
                 porosities.push_back(upscaler.upscalePorosity());
+                if (ch.hasNTG()) {
+                    netporosities.push_back(upscaler.upscaleNetPorosity());
+                    ntgs.push_back(upscaler.upscaleNTG());                    
+                }
+                if (ch.hasSWCR()) {
+                    swcrs.push_back(upscaler.upscaleSWCR(ch.hasNTG()));
+                }
+                if (ch.hasSOWCR()) {
+                    sowcrs.push_back(upscaler.upscaleSOWCR(ch.hasNTG()));
+                }
                 permxs.push_back(upscaled_K(0,0));
                 permys.push_back(upscaled_K(1,1));
                 permzs.push_back(upscaled_K(2,2));
                 permyzs.push_back(upscaled_K(1,2));
                 permxzs.push_back(upscaled_K(0,2));
                 permxys.push_back(upscaled_K(0,1));
-
             }
 
             if (endpoints) {
-                // Calculate minimum and maximum water volume in each cell
+                // Calculate minimum and maximum water volume in each cell based on input pc-curves per rock type
                 // Create single-phase upscaling object to get poro and perm values from the grid
-                Opm::EclipseGridParser subparser = ch.subparser();
-                std::vector<double>  perms = subparser.getFloatingPointValue("PERMX");
-                subparser.convertToSI();
+                Opm::DeckConstPtr subdeck = ch.subDeck();
+                std::vector<double>  perms = subdeck->getKeyword("PERMX")->getSIDoubleData();
                 Opm::SinglePhaseUpscaler upscaler;                
-                upscaler.init(subparser, bctype, minpermSI, z_tolerance,
+                upscaler.init(subdeck, bctype, minpermSI, z_tolerance,
                               residual_tolerance, linsolver_verbosity, linsolver_type, false);
-                std::vector<int>   satnums = subparser.getIntegerValue("SATNUM");
-                std::vector<double>  poros = subparser.getFloatingPointValue("PORO");
+                std::vector<int>   satnums = subdeck->getKeyword("SATNUM")->getIntData();
+                std::vector<double>  poros = subdeck->getKeyword("PORO")->getSIDoubleData();
                 std::vector<double> cellVolumes, cellPoreVolumes;
                 cellVolumes.resize(satnums.size(), 0.0);
                 cellPoreVolumes.resize(satnums.size(), 0.0);
                 int tesselatedCells = 0;
-                double Pcmax = -DBL_MAX, Pcmin = DBL_MAX;
                 //double maxSinglePhasePerm = 0;
                 double Swirvolume = 0;
                 double Sworvolume = 0;
@@ -339,7 +368,7 @@ int main(int argc, char** argv)
                     if (satnums[cell_idx] > 0) { // Satnum zero is "no rock"
                         cellVolumes[cell_idx] = c->geometry().volume();
                         cellPoreVolumes[cell_idx] = cellVolumes[cell_idx] * poros[cell_idx];
-                        double Pcmincandidate, Pcmaxcandidate, minSw, maxSw;
+                        double Pcmincandidate = 0.0, Pcmaxcandidate = 0.0, minSw, maxSw;
                         if (!anisorocks) {
                             if (cappres) {
                                 Pcmincandidate = jfuncendpoints_[int(satnums[cell_idx])-1][1]
@@ -456,11 +485,16 @@ int main(int argc, char** argv)
 
 
 	    if (dips) {
-		Opm::EclipseGridParser subparser = ch.subparser();
-		std::vector<int>  griddims = subparser.getSPECGRID().dimensions;
+		Opm::DeckConstPtr subdeck = ch.subDeck();
+		std::vector<int>  griddims(3);
+		Opm::DeckRecordConstPtr specgridRecord(subdeck->getKeyword("SPECGRID")->getRecord(0));
+		griddims[0] = specgridRecord->getItem("NX")->getInt(0);
+		griddims[1] = specgridRecord->getItem("NY")->getInt(0);
+		griddims[2] = specgridRecord->getItem("NZ")->getInt(0);
+
 		std::vector<double> xdips_subsample, ydips_subsample;
 
-		Opm::EclipseGridInspector gridinspector(subparser);
+		Opm::EclipseGridInspector gridinspector(subdeck);
 		for (int k=0; k < griddims[2]; ++k) {
 		    for (int j=0; j < griddims[1]; ++j) {
 			for (int i=0; i < griddims[0]; ++i) {
@@ -491,13 +525,18 @@ int main(int argc, char** argv)
 	    }
 
 	    if (satnumvolumes) {
-		Opm::EclipseGridParser subparser = ch.subparser();
-		Opm::EclipseGridInspector subinspector(subparser);
-		std::vector<int>  griddims = subparser.getSPECGRID().dimensions;
+		Opm::DeckConstPtr subdeck = ch.subDeck();
+		Opm::EclipseGridInspector subinspector(subdeck);
+		std::vector<int>  griddims(3);
+		Opm::DeckRecordConstPtr specgridRecord(subdeck->getKeyword("SPECGRID")->getRecord(0));
+		griddims[0] = specgridRecord->getItem("NX")->getInt(0);
+		griddims[1] = specgridRecord->getItem("NY")->getInt(0);
+		griddims[2] = specgridRecord->getItem("NZ")->getInt(0);
+
 		int number_of_subsamplecells = griddims[0] * griddims[1] * griddims[2];
 
 		// If SATNUM is non-existent in input grid, this will fail:
-		std::vector<int> satnums = subparser.getIntegerValue("SATNUM");
+		std::vector<int> satnums = subdeck->getKeyword("SATNUM")->getIntData();
 
 		std::vector<double> rockvolumessubsample;
 		for (int cell_idx=0; cell_idx < number_of_subsamplecells; ++cell_idx) {
@@ -521,7 +560,6 @@ int main(int argc, char** argv)
         catch (...) {
             std::cerr << "Warning: Upscaling chopped subsample nr. " << sample << " failed, proceeding to next subsample\n";
         }
-
     }
     
 
@@ -553,15 +591,36 @@ int main(int argc, char** argv)
     outputtmp << "# id";
     if (upscale) {
         if (isPeriodic) {
-            outputtmp << "          porosity                 permx                   permy                   permz                   permyz                  permxz                  permxy";
+            if (ch.hasNTG()) {
+                outputtmp << "          porosity                netporosity             ntg                      permx                   permy                   permz                   permyz                  permxz                  permxy                  netpermh";
+            }
+            else {
+                outputtmp << "          porosity                 permx                   permy                   permz                   permyz                  permxz                  permxy";
+            }
         }
         else if (isFixed) {
-            outputtmp << "          porosity                 permx                   permy                   permz";
+            if (ch.hasNTG()) {
+                outputtmp << "          porosity                netporosity             ntg                      permx                   permy                   permz                   netpermh";
+            }
+            else {
+                outputtmp << "          porosity                 permx                   permy                   permz";
+            }
+        }
+        if (ch.hasSWCR()) {
+            outputtmp << "               swcr ";
+        }
+        if (ch.hasSOWCR()) {
+            outputtmp << "               sowcr ";
         }
     }
     if (endpoints) {
         if (!upscale) {
-            outputtmp << "          porosity";
+            if (ch.hasNTG()) {
+                outputtmp << "          porosity                netporosity            ntg";
+            }
+            else {
+                outputtmp << "          porosity";
+            }
         }
         outputtmp << "                  Swir                    Swor";
         if (cappres) {
@@ -583,7 +642,12 @@ int main(int argc, char** argv)
 	outputtmp << sample << '\t';
 	if (upscale) {
 	    outputtmp <<
-		std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << porosities[sample-1] << '\t' <<
+		std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << porosities[sample-1] << '\t';
+            if (ch.hasNTG()) {
+		outputtmp << std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << netporosities[sample-1] << '\t' <<
+                    std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << ntgs[sample-1] << '\t';
+            }
+            outputtmp <<
 		std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << permxs[sample-1] << '\t' <<
 		std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << permys[sample-1] << '\t' <<
 		std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << permzs[sample-1] << '\t';
@@ -593,11 +657,29 @@ int main(int argc, char** argv)
                     std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << permxzs[sample-1] << '\t' <<
                     std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << permxys[sample-1] << '\t';                
             }
+            if (ch.hasNTG()) {
+                outputtmp <<
+                    std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << (permxs[sample-1]+permys[sample-1])/(2.0*ntgs[sample-1]) << '\t';
+            }
+            if (ch.hasSWCR()) {
+                outputtmp <<
+                    std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << swcrs[sample-1] << '\t';
+            }
+            if (ch.hasSOWCR()) {
+                outputtmp <<
+                    std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << sowcrs[sample-1] << '\t';
+            }
 	}
 	if (endpoints) {
             if (!upscale) {
                 outputtmp <<
                     std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << porosities[sample-1] << '\t';
+                if (ch.hasNTG()) {
+                    outputtmp <<
+                        std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << netporosities[sample-1] << '\t' <<
+                        std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << ntgs[sample-1] << '\t';
+                }
+
             }
 	    outputtmp <<
 		std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << minsws[sample-1] << '\t' <<
@@ -639,4 +721,7 @@ int main(int argc, char** argv)
 
     std::cout << outputtmp.str();
 }
-
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}

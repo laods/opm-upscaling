@@ -22,17 +22,9 @@
 #	                      files can of course include other files than these;
 #	                      you should only add to this list if the *user* of
 #	                      the library needs it.
-
-# originally generated with the command:
-# find opm -name '*.c*' -printf '\t%p\n' | sort
-list (APPEND MAIN_SOURCE_FILES
-	opm/elasticity/boundarygrid.cpp
-	opm/elasticity/dynmatrixev.cpp
-	opm/elasticity/fmatrixev_ext.cc
-	opm/elasticity/material.cpp
-	opm/elasticity/materials.cpp
-	opm/elasticity/mpc.cpp
-	)
+#
+# ATTIC_FILES           Unmaintained files. This for the projects developers
+#                       only. Don't expect these files to build.
 
 # originally generated with the command:
 # find tests -name '*.cpp' -a ! -wholename '*/not-unit/*' -printf '\t%p\n' | sort
@@ -52,6 +44,8 @@ list (APPEND TEST_DATA_FILES
   tests/input_data/reference_solutions/upscale_perm_BCflp_27cellsIso.txt 
   tests/input_data/reference_solutions/upscale_perm_BCfl_EightCells.txt 
   tests/input_data/reference_solutions/upscale_perm_BCflp_Hummocky.txt 
+  tests/input_data/reference_solutions/upscale_elasticity_mpc_EightCells.txt
+  tests/input_data/reference_solutions/upscale_elasticity_mortar_EightCells.txt
 	)
 
 # originally generated with the command:
@@ -66,13 +60,21 @@ list (APPEND EXAMPLE_SOURCE_FILES
 	examples/upscale_avg.cpp
 	examples/upscale_cap.cpp
 	examples/upscale_cond.cpp
-	examples/upscale_elasticity.cpp
 	examples/upscale_perm.cpp
 	examples/upscale_relperm.cpp
 	examples/upscale_relpermvisc.cpp
 	examples/upscale_singlephase.cpp
 	examples/upscale_steadystate_implicit.cpp
 	tests/compare_upscaling_results.cpp
+	)
+
+# originally generated with the command:
+# find attic -name '*.c*' -printf '\t%p\n' | sort
+list (APPEND ATTIC_FILES
+	attic/aniso_implicit_steadystate_test.cpp
+	attic/aniso_steadystate_test.cpp
+	attic/implicit_steadystate_test.cpp
+	attic/steadystate_test_explicit.cpp
 	)
 
 # programs listed here will not only be compiled, but also marked for
@@ -87,7 +89,6 @@ list (APPEND PROGRAM_SOURCE_FILES
 	examples/upscale_avg.cpp
 	examples/upscale_cap.cpp
 	examples/upscale_cond.cpp
-	examples/upscale_elasticity.cpp
 	examples/upscale_perm.cpp
 	examples/upscale_relperm.cpp
 	examples/upscale_relpermvisc.cpp
@@ -98,29 +99,7 @@ list (APPEND PROGRAM_SOURCE_FILES
 # originally generated with the command:
 # find opm -name '*.h*' -a ! -name '*-pch.hpp' -printf '\t%p\n' | sort
 list (APPEND PUBLIC_HEADER_FILES
-	opm/elasticity/applier.hpp
-	opm/elasticity/asmhandler.hpp
-	opm/elasticity/asmhandler_impl.hpp
-	opm/elasticity/boundarygrid.hh
-	opm/elasticity/dynmatrixev.hh
-	opm/elasticity/elasticity.hpp
-	opm/elasticity/elasticity_impl.hpp
-	opm/elasticity/elasticity_upscale.hpp
-	opm/elasticity/elasticity_upscale_impl.hpp
-	opm/elasticity/fmatrixev_ext.hh
-	opm/elasticity/logutils.hpp
-	opm/elasticity/material.hh
-	opm/elasticity/materials.hh
-	opm/elasticity/matrixops.hpp
-	opm/elasticity/matrixops_impl.hpp
-	opm/elasticity/mortar_evaluator.hpp
-	opm/elasticity/mortar_schur.hpp
-	opm/elasticity/mortar_schur_precond.hpp
-	opm/elasticity/mortar_utils.hpp
-	opm/elasticity/mpc.hh
-	opm/elasticity/seqlu.hpp
-	opm/elasticity/shapefunctions.hpp
-	opm/elasticity/uzawa_solver.hpp
+	opm/upscaling/ParserAdditions.hpp
 	opm/upscaling/SinglePhaseUpscaler.hpp
 	opm/upscaling/SteadyStateUpscaler.hpp
 	opm/upscaling/SteadyStateUpscaler_impl.hpp
@@ -130,6 +109,5 @@ list (APPEND PUBLIC_HEADER_FILES
 	opm/upscaling/SteadyStateUpscalerManagerImplicit.hpp
 	opm/upscaling/UpscalerBase.hpp
 	opm/upscaling/UpscalerBase_impl.hpp
-	opm/upscaling/upscaling.hh
 	opm/upscaling/UpscalingTraits.hpp
 	)

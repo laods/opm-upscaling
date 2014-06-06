@@ -79,12 +79,16 @@
 #include <map>
 #include <sys/utsname.h>
 
-#ifdef USEMPI
-#include <mpi.h>
-#endif
-
 #include <opm/core/utility/MonotCubicInterpolator.hpp>
 #include <opm/upscaling/SinglePhaseUpscaler.hpp>
+#include <opm/upscaling/ParserAdditions.hpp>
+
+#include <dune/common/version.hh>
+#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 3)
+#include <dune/common/parallel/mpihelper.hh>
+#else
+#include <dune/common/mpihelper.hh>
+#endif
 
 using namespace Opm;
 using namespace std;
@@ -137,9 +141,6 @@ void usage()
 }
 
 void usageandexit() {
-#ifdef USEMPI
-    MPI_Finalize();
-#endif
     usage();
     exit(1);
 }
@@ -147,7 +148,7 @@ void usageandexit() {
 // Assumes that permtensor_t use C ordering.
 double getVoigtValue(const SinglePhaseUpscaler::permtensor_t& K, int voigt_idx)
 {
-    ASSERT(K.numRows() == 3 && K.numCols() == 3);
+    assert(K.numRows() == 3 && K.numCols() == 3);
     switch (voigt_idx) {
     case 0: return K.data()[0];
     case 1: return K.data()[4];
@@ -168,7 +169,7 @@ double getVoigtValue(const SinglePhaseUpscaler::permtensor_t& K, int voigt_idx)
 // Assumes that permtensor_t use C ordering.
 void setVoigtValue(SinglePhaseUpscaler::permtensor_t& K, int voigt_idx, double val)
 {
-    ASSERT(K.numRows() == 3 && K.numCols() == 3);
+    assert(K.numRows() == 3 && K.numCols() == 3);
     switch (voigt_idx) {
     case 0: K.data()[0] = val; break;
     case 1: K.data()[4] = val; break;
@@ -186,6 +187,7 @@ void setVoigtValue(SinglePhaseUpscaler::permtensor_t& K, int voigt_idx, double v
 }
 
 int main(int varnum, char** vararg)
+try
 { 
     // Variables used for timing/profiling:
     clock_t start, finish;
@@ -197,13 +199,11 @@ int main(int varnum, char** vararg)
      * Process command line options
      */
     
-    int mpi_rank = 0;
-#ifdef USEMPI
-    int mpi_nodecount = 1;
-    MPI_Init(&varnum, &vararg);
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_nodecount);
-#endif 
+    Dune::MPIHelper& mpi=Dune::MPIHelper::instance(varnum, vararg);
+    const int mpi_rank = mpi.rank();
+#ifdef HAVE_MPI
+    const int mpi_nodecount = mpi.size();
+#endif
     bool isMaster = (mpi_rank == 0);
     if (varnum == 1) { /* If no arguments supplied ("upscale_relpermvisc" is the first "argument") */
         usage();
@@ -232,8 +232,10 @@ int main(int varnum, char** vararg)
     // that give so small contributions to Sw near endpoints.
     options.insert(make_pair("linsolver_tolerance", "1e-12"));  // residual tolerance for linear solver
     options.insert(make_pair("linsolver_verbosity", "0"));     // verbosity level for linear solver
-    options.insert(make_pair("linsolver_type",      "1"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG
-    
+    options.insert(make_pair("linsolver_type",      "3"));     // type of linear solver: 0 = ILU/BiCGStab, 1 = AMG/CG, 2 = KAMG/CG, 3 = FastAMG/CG
+    options.insert(make_pair("linsolver_prolongate_factor", "1.0")); // Factor to scale the prolongate coarse grid correction,
+    options.insert(make_pair("linsolver_smooth_steps", "1")); // Number of pre and postsmoothing steps for AMG
+
     /* Check first if there is anything on the command line to look for */
     if (varnum == 1) {
         if (isMaster) cerr << "Error: No Eclipsefile or stonefiles found on command line." << endl;
@@ -374,28 +376,31 @@ int main(int varnum, char** vararg)
     if (isMaster) cout << "Parsing Eclipse file <" << ECLIPSEFILENAME << "> ... ";
     flush(cout);   start = clock();
  
-    Opm::EclipseGridParser eclParser(ECLIPSEFILENAME,false);
+    Opm::ParserPtr parser(new Opm::Parser());
+    Opm::addNonStandardUpscalingKeywords(parser);
+    Opm::DeckConstPtr deck(parser->parseFile(ECLIPSEFILENAME));
+
     finish = clock();   timeused = (double(finish)-double(start))/CLOCKS_PER_SEC;
     if (isMaster) cout << " (" << timeused <<" secs)" << endl;
   
     // Check that we have the information we need from the eclipse file: 
-    if (! (eclParser.hasField("SPECGRID") && eclParser.hasField("COORD") && eclParser.hasField("ZCORN") 
-           && eclParser.hasField("PORO") && eclParser.hasField("PERMX") && eclParser.hasField("SATNUM"))) { 
+    if (! (deck->hasKeyword("SPECGRID") && deck->hasKeyword("COORD") && deck->hasKeyword("ZCORN") 
+           && deck->hasKeyword("PORO") && deck->hasKeyword("PERMX") && deck->hasKeyword("SATNUM"))) { 
         cerr << "Error: Did not find SPECGRID, COORD and ZCORN in Eclipse file " << ECLIPSEFILENAME << endl; 
         usage(); 
         exit(1); 
     } 
     
-    vector<double> poros  = eclParser.getFloatingPointValue("PORO"); 
-    vector<double> permxs = eclParser.getFloatingPointValue("PERMX"); 
+    vector<double> poros  = deck->getKeyword("PORO")->getSIDoubleData(); 
+    vector<double> permxs = deck->getKeyword("PERMX")->getSIDoubleData(); 
  
     // Load anisotropic (only diagonal supported) input if present in grid
     vector<double> permys, permzs;
     
-    if (eclParser.hasField("PERMY") && eclParser.hasField("PERMZ")) {
+    if (deck->hasKeyword("PERMY") && deck->hasKeyword("PERMZ")) {
         anisotropic_input = true;
-        permys = eclParser.getFloatingPointValue("PERMY");
-        permzs = eclParser.getFloatingPointValue("PERMZ");
+        permys = deck->getKeyword("PERMY")->getSIDoubleData();
+        permzs = deck->getKeyword("PERMZ")->getSIDoubleData();
         if (isMaster) cout << "Info: PERMY and PERMZ present, going into anisotropic input mode, no J-functions\n"; 
         if (isMaster) cout << "      Options -relPermCurve and -jFunctionCurve is meaningless.\n"; 
     } 
@@ -404,11 +409,11 @@ int main(int varnum, char** vararg)
     /* Initialize a default satnums-vector with only "ones" (meaning only one rocktype) */ 
     vector<int> satnums(poros.size(), 1); 
     
-    if (eclParser.hasField("SATNUM")) { 
-        satnums = eclParser.getIntegerValue("SATNUM"); 
+    if (deck->hasKeyword("SATNUM")) { 
+        satnums = deck->getKeyword("SATNUM")->getIntData(); 
     } 
-    else if (eclParser.hasField("ROCKTYPE")) { 
-        satnums = eclParser.getIntegerValue("ROCKTYPE"); 
+    else if (deck->hasKeyword("ROCKTYPE")) { 
+        satnums = deck->getKeyword("ROCKTYPE")->getIntData(); 
     } 
     else { 
         if (isMaster) cout << "Warning: SATNUM or ROCKTYPE not found in input file, assuming only one rocktype" << endl; 
@@ -824,8 +829,7 @@ int main(int varnum, char** vararg)
     int linsolver_verbosity = atoi(options["linsolver_verbosity"].c_str());
     int linsolver_type = atoi(options["linsolver_type"].c_str());
     bool twodim_hack = false;
-    eclParser.convertToSI();
-    upscaler.init(eclParser, boundaryCondition,
+    upscaler.init(deck, boundaryCondition,
                   Opm::unit::convert::from(minPerm, Opm::prefix::milli*Opm::unit::darcy),
                   ztol, linsolver_tolerance, linsolver_verbosity, linsolver_type, twodim_hack);
  
@@ -1217,7 +1221,7 @@ int main(int varnum, char** vararg)
         node_vs_fracflowratiopoint.push_back(0);
     }
     
-#if USEMPI
+#ifdef HAVE_MPI
     // Distribute work load over mpi nodes.
     for (int idx=0; idx < points; ++idx) {
         // Ensure master node gets equal or less work than the other nodes, since
@@ -1363,7 +1367,7 @@ int main(int varnum, char** vararg)
                 //cout << waterVolumeLF/poreVolume;
                 WaterSaturation[pointidx] =  waterVolumeLF/poreVolume;
                 
-#ifdef USEMPI
+#ifdef HAVE_MPI
                 cout << "Rank " << mpi_rank << ": " << endl;;
 #endif
                 cout << fracFlowRatioTestvalue << "\t" << WaterSaturation[pointidx];
@@ -1379,7 +1383,7 @@ int main(int varnum, char** vararg)
     clock_t finish_upscale_wallclock = clock();
     timeused_upscale_wallclock = (double(finish_upscale_wallclock)-double(start_upscale_wallclock))/CLOCKS_PER_SEC;
     //double timeused_upscale_total = timeused_upscale_wallclock;
-#ifdef USEMPI   
+#ifdef HAVE_MPI
     /* Step Xb: Transfer all computed data to master node.
        Master node should post a receive for all values missing,
        other nodes should post a send for all the values they have.
@@ -1422,7 +1426,7 @@ int main(int varnum, char** vararg)
 #endif
 
     // Average time pr. upscaling point:
-#ifdef USEMPI
+#ifdef HAVE_MPI
     // Sum the upscaling time used by all processes
     double timeused_total;
     MPI_Reduce(&timeused_upscale_wallclock, &timeused_total, 1, MPI_DOUBLE, 
@@ -1516,7 +1520,7 @@ int main(int varnum, char** vararg)
        outheadtmp << "#" << endl;
        outheadtmp << "# Timings:   Tesselation: " << timeused_tesselation << " secs" << endl;
        outheadtmp << "#              Upscaling: " << timeused_upscale_wallclock << " secs";
-#ifdef USEMPI
+#ifdef HAVE_MPI
        outheadtmp << " (wallclock time)" << endl;
        outheadtmp << "#                         " << avg_upscaling_time_pr_point << " secs pr. saturation point" << endl;
        outheadtmp << "#              MPI-nodes: " << mpi_nodecount << endl;
@@ -1667,9 +1671,10 @@ int main(int varnum, char** vararg)
        }
    }
 
-#if USEMPI
-   MPI_Finalize();
-#endif
-
    return 0;
-};
+}
+catch (const std::exception &e) {
+    std::cerr << "Program threw an exception: " << e.what() << "\n";
+    throw;
+}
+
