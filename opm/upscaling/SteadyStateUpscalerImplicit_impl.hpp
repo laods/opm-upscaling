@@ -215,11 +215,11 @@ namespace Opm
             // Run pressure solver.
             if (converged) {
                 init_saturation = saturation;
-                // this->flow_solver_.solve(this->res_prop_, saturation, this->bcond_, src,
-                //                          this->residual_tolerance_, this->linsolver_verbosity_, this->linsolver_type_);
-                // max_mod = this->flow_solver_.postProcessFluxes();
-                // std::cout << "Max mod of fluxes= " << max_mod << std::endl;
-                this->flow_solver_.postProcessFluxes();
+                this->flow_solver_.solve(this->res_prop_, saturation, this->bcond_, src,
+                                         this->residual_tolerance_, this->linsolver_verbosity_, this->linsolver_type_);
+                max_mod = this->flow_solver_.postProcessFluxes();
+                std::cout << "Max mod of fluxes= " << max_mod << std::endl;
+                // this->flow_solver_.postProcessFluxes();
                 // Print in-out flows if requested.
                 if (print_inoutflows_) {
                     std::pair<double, double> w_io, o_io;
