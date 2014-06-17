@@ -38,7 +38,7 @@ int main(int varnum, char** vararg) {
 	map_poro_satnum[0.27] = 3;
 	map_poro_satnum[0.1755] = 4;
 	map_poro_satnum[0.2249] = 5;
-	map_poro_satnum[0.1533] = 6;
+	map_poro_satnum[0.1532] = 6;
 	map_poro_satnum[0.203] = 7;
 	map_poro_satnum[0.1701] = 8;
 	map_poro_satnum[0.2734] = 9;
@@ -77,7 +77,7 @@ int main(int varnum, char** vararg) {
 	map_poro_satnum[0.203] = 12;
 	map_poro_satnum[0.2734] = 13;
 	map_poro_satnum[0.0801] = 14;
-	map_poro_satnum[0.2605] = 15;
+	map_poro_satnum[0.2604] = 15;
     }
     else if (section_name == "Parallel" || section_name == "parallel") {
 	Pc_avg = {1.2286e4,2.7473e5};
