@@ -37,9 +37,9 @@
 
 #include <opm/core/utility/parameters/ParameterGroup.hpp>
 #include <dune/grid/CpGrid.hpp>
-#include <opm/core/io/eclipse/EclipseGridParser.hpp>
 #include <opm/porsol/common/GridInterfaceEuler.hpp>
 #include <opm/porsol/common/BoundaryConditions.hpp>
+#include <opm/parser/eclipse/Deck/Deck.hpp>
 
 
 namespace Opm
@@ -75,7 +75,7 @@ namespace Opm
 	void init(const Opm::parameter::ParameterGroup& param);
 
 	/// Initializes the upscaler from given arguments.
-	void init(const Opm::EclipseGridParser& parser,
+	void init(Opm::DeckConstPtr deck,
                   BoundaryConditionType bctype,
                   double perm_threshold,
                   double z_tolerance = 0.0,
@@ -114,6 +114,14 @@ namespace Opm
         /// Compute upscaled NTG.
         /// @return total net of all cells divided by total volume.
         double upscaleNTG() const;
+
+        /// Compute upscaled SWCR.
+        /// @return total irreducible water volume divided by total pore volume
+        double upscaleSWCR(const bool NTG) const;
+
+        /// Compute upscaled SOWCR.
+        /// @return total irreducible oil volume divided by total pore volume
+        double upscaleSOWCR(const bool NTG) const;
 
     protected:
 	// ------- Typedefs and enums -------

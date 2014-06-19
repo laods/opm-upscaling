@@ -128,7 +128,7 @@ namespace Opm
 
 
     template <class Traits>
-    inline void UpscalerBase<Traits>::init(const Opm::EclipseGridParser& parser,
+    inline void UpscalerBase<Traits>::init(Opm::DeckConstPtr deck,
                                            BoundaryConditionType bctype,
                                            double perm_threshold,
                                            double z_tolerance,
@@ -155,7 +155,7 @@ namespace Opm
         bool clip_z = (bctype_ == Periodic);
         bool unique_bids = (bctype_ == Linear || bctype_ == Periodic);
         std::string rock_list("no_list");
-	setupGridAndPropsEclipse(parser, z_tolerance,
+	setupGridAndPropsEclipse(deck, z_tolerance,
                                  periodic_ext, turn_normals, clip_z, unique_bids,
                                  perm_threshold, rock_list,
                                  useJ<ResProp>(), 1.0, 0.0,
@@ -410,6 +410,46 @@ namespace Opm
             total_net_vol += c->volume()*res_prop_.ntg(c->index());
         }
         return total_net_vol/total_vol;
+    }
+
+    template <class Traits>
+    double UpscalerBase<Traits>::upscaleSWCR(const bool NTG) const
+    {
+        double total_swcr = 0.0;
+        double total_pore_vol = 0.0;
+        if (NTG) {
+            for (CellIter c = ginterf_.cellbegin(); c != ginterf_.cellend(); ++c) {
+                total_swcr += c->volume()*res_prop_.porosity(c->index())*res_prop_.ntg(c->index())*res_prop_.swcr(c->index());
+                total_pore_vol += c->volume()*res_prop_.porosity(c->index())*res_prop_.ntg(c->index());
+            }
+        }
+        else {
+            for (CellIter c = ginterf_.cellbegin(); c != ginterf_.cellend(); ++c) {
+                total_swcr += c->volume()*res_prop_.porosity(c->index())*res_prop_.swcr(c->index());
+                total_pore_vol += c->volume()*res_prop_.porosity(c->index());
+            }
+        }
+        return total_swcr/total_pore_vol;
+    }
+
+    template <class Traits>
+    double UpscalerBase<Traits>::upscaleSOWCR(const bool NTG) const
+    {
+        double total_sowcr = 0.0;
+        double total_pore_vol = 0.0;
+        if (NTG) {
+            for (CellIter c = ginterf_.cellbegin(); c != ginterf_.cellend(); ++c) {
+                total_sowcr += c->volume()*res_prop_.porosity(c->index())*res_prop_.ntg(c->index())*res_prop_.sowcr(c->index());
+                total_pore_vol += c->volume()*res_prop_.porosity(c->index())*res_prop_.ntg(c->index());
+            }
+        }
+        else {
+            for (CellIter c = ginterf_.cellbegin(); c != ginterf_.cellend(); ++c) {
+                total_sowcr += c->volume()*res_prop_.porosity(c->index())*res_prop_.sowcr(c->index());
+                total_pore_vol += c->volume()*res_prop_.porosity(c->index());
+            }
+        }
+        return total_sowcr/total_pore_vol;
     }
 
 } // namespace Opm

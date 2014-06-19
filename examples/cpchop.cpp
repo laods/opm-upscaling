@@ -277,6 +277,8 @@ try
     std::vector<double> porosities;
     std::vector<double> netporosities;
     std::vector<double> ntgs;
+    std::vector<double> swcrs;
+    std::vector<double> sowcrs;
     std::vector<double> permxs;
     std::vector<double> permys;
     std::vector<double> permzs;
@@ -313,11 +315,10 @@ try
 
         try { /* The upscaling may fail to converge on icky grids, lets just pass by those */
             if (upscale) {
-                Opm::EclipseGridParser subparser = ch.subparser();
-                subparser.convertToSI();
+                Opm::DeckConstPtr subdeck = ch.subDeck();
                 Opm::SinglePhaseUpscaler upscaler;
                 
-                upscaler.init(subparser, bctype, minpermSI, z_tolerance,
+                upscaler.init(subdeck, bctype, minpermSI, z_tolerance,
                               residual_tolerance, linsolver_verbosity, linsolver_type, false);
 
                 Opm::SinglePhaseUpscaler::permtensor_t upscaled_K = upscaler.upscaleSinglePhase();
@@ -329,26 +330,30 @@ try
                     netporosities.push_back(upscaler.upscaleNetPorosity());
                     ntgs.push_back(upscaler.upscaleNTG());                    
                 }
+                if (ch.hasSWCR()) {
+                    swcrs.push_back(upscaler.upscaleSWCR(ch.hasNTG()));
+                }
+                if (ch.hasSOWCR()) {
+                    sowcrs.push_back(upscaler.upscaleSOWCR(ch.hasNTG()));
+                }
                 permxs.push_back(upscaled_K(0,0));
                 permys.push_back(upscaled_K(1,1));
                 permzs.push_back(upscaled_K(2,2));
                 permyzs.push_back(upscaled_K(1,2));
                 permxzs.push_back(upscaled_K(0,2));
                 permxys.push_back(upscaled_K(0,1));
-
             }
 
             if (endpoints) {
-                // Calculate minimum and maximum water volume in each cell
+                // Calculate minimum and maximum water volume in each cell based on input pc-curves per rock type
                 // Create single-phase upscaling object to get poro and perm values from the grid
-                Opm::EclipseGridParser subparser = ch.subparser();
-                std::vector<double>  perms = subparser.getFloatingPointValue("PERMX");
-                subparser.convertToSI();
+                Opm::DeckConstPtr subdeck = ch.subDeck();
+                std::vector<double>  perms = subdeck->getKeyword("PERMX")->getSIDoubleData();
                 Opm::SinglePhaseUpscaler upscaler;                
-                upscaler.init(subparser, bctype, minpermSI, z_tolerance,
+                upscaler.init(subdeck, bctype, minpermSI, z_tolerance,
                               residual_tolerance, linsolver_verbosity, linsolver_type, false);
-                std::vector<int>   satnums = subparser.getIntegerValue("SATNUM");
-                std::vector<double>  poros = subparser.getFloatingPointValue("PORO");
+                std::vector<int>   satnums = subdeck->getKeyword("SATNUM")->getIntData();
+                std::vector<double>  poros = subdeck->getKeyword("PORO")->getSIDoubleData();
                 std::vector<double> cellVolumes, cellPoreVolumes;
                 cellVolumes.resize(satnums.size(), 0.0);
                 cellPoreVolumes.resize(satnums.size(), 0.0);
@@ -480,11 +485,16 @@ try
 
 
 	    if (dips) {
-		Opm::EclipseGridParser subparser = ch.subparser();
-		std::vector<int>  griddims = subparser.getSPECGRID().dimensions;
+		Opm::DeckConstPtr subdeck = ch.subDeck();
+		std::vector<int>  griddims(3);
+		Opm::DeckRecordConstPtr specgridRecord(subdeck->getKeyword("SPECGRID")->getRecord(0));
+		griddims[0] = specgridRecord->getItem("NX")->getInt(0);
+		griddims[1] = specgridRecord->getItem("NY")->getInt(0);
+		griddims[2] = specgridRecord->getItem("NZ")->getInt(0);
+
 		std::vector<double> xdips_subsample, ydips_subsample;
 
-		Opm::EclipseGridInspector gridinspector(subparser);
+		Opm::EclipseGridInspector gridinspector(subdeck);
 		for (int k=0; k < griddims[2]; ++k) {
 		    for (int j=0; j < griddims[1]; ++j) {
 			for (int i=0; i < griddims[0]; ++i) {
@@ -515,13 +525,18 @@ try
 	    }
 
 	    if (satnumvolumes) {
-		Opm::EclipseGridParser subparser = ch.subparser();
-		Opm::EclipseGridInspector subinspector(subparser);
-		std::vector<int>  griddims = subparser.getSPECGRID().dimensions;
+		Opm::DeckConstPtr subdeck = ch.subDeck();
+		Opm::EclipseGridInspector subinspector(subdeck);
+		std::vector<int>  griddims(3);
+		Opm::DeckRecordConstPtr specgridRecord(subdeck->getKeyword("SPECGRID")->getRecord(0));
+		griddims[0] = specgridRecord->getItem("NX")->getInt(0);
+		griddims[1] = specgridRecord->getItem("NY")->getInt(0);
+		griddims[2] = specgridRecord->getItem("NZ")->getInt(0);
+
 		int number_of_subsamplecells = griddims[0] * griddims[1] * griddims[2];
 
 		// If SATNUM is non-existent in input grid, this will fail:
-		std::vector<int> satnums = subparser.getIntegerValue("SATNUM");
+		std::vector<int> satnums = subdeck->getKeyword("SATNUM")->getIntData();
 
 		std::vector<double> rockvolumessubsample;
 		for (int cell_idx=0; cell_idx < number_of_subsamplecells; ++cell_idx) {
@@ -545,7 +560,6 @@ try
         catch (...) {
             std::cerr << "Warning: Upscaling chopped subsample nr. " << sample << " failed, proceeding to next subsample\n";
         }
-
     }
     
 
@@ -591,6 +605,12 @@ try
             else {
                 outputtmp << "          porosity                 permx                   permy                   permz";
             }
+        }
+        if (ch.hasSWCR()) {
+            outputtmp << "               swcr ";
+        }
+        if (ch.hasSOWCR()) {
+            outputtmp << "               sowcr ";
         }
     }
     if (endpoints) {
@@ -640,6 +660,14 @@ try
             if (ch.hasNTG()) {
                 outputtmp <<
                     std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << (permxs[sample-1]+permys[sample-1])/(2.0*ntgs[sample-1]) << '\t';
+            }
+            if (ch.hasSWCR()) {
+                outputtmp <<
+                    std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << swcrs[sample-1] << '\t';
+            }
+            if (ch.hasSOWCR()) {
+                outputtmp <<
+                    std::showpoint << std::setw(fieldwidth) << std::setprecision(outputprecision) << sowcrs[sample-1] << '\t';
             }
 	}
 	if (endpoints) {
