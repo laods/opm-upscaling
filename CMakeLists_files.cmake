@@ -79,6 +79,7 @@ list (APPEND EXAMPLE_SOURCE_FILES
 	examples/upscale_steadystate_implicit.cpp
 	tests/compare_upscaling_results.cpp
 	examples/printForceInfo.cpp
+	examples/calcCa.cpp
 	)
 
 # originally generated with the command:
