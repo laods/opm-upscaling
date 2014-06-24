@@ -10,7 +10,8 @@
 #include <fstream>
 
 #include <dune/grid/CpGrid.hpp>
-#include <opm/core/io/eclipse/EclipseGridParser.hpp>
+#include <opm/parser/eclipse/Parser/Parser.hpp>
+#include <opm/parser/eclipse/Deck/Deck.hpp>
 #include <opm/porsol/common/GridInterfaceEuler.hpp>
 #include <opm/porsol/common/Rock.hpp>
 
@@ -98,24 +99,19 @@ int main(int varnum, char** vararg) {
     }
     eclipsefile.close();
     
-    Opm::EclipseGridParser * eclParser_p;
-    try {
-        eclParser_p = new Opm::EclipseGridParser(ECLIPSEFILENAME);
-    }
-    catch (...) {
-        cout << "Error: Filename " << ECLIPSEFILENAME << " does not look like an eclipse grid file." << endl;
-        exit(1);
-    }
-    Opm::EclipseGridParser& eclParser = *eclParser_p;
+    // Parse grdecl file
+    std::cout << "Parsing grid file '" << ECLIPSEFILENAME << "' ..." << std::endl;
+    Opm::ParserPtr parser(new Opm::Parser);
+    Opm::DeckConstPtr deck(parser->parseFile(ECLIPSEFILENAME));
 
     Dune::CpGrid grid;
-    grid.processEclipseFormat(eclParser, 0, false);
+    grid.processEclipseFormat(deck, 0, false);
     
     typedef Opm::GridInterfaceEuler<Dune::CpGrid> GridInterface;
     GridInterface gridinterf(grid);
     
     Opm::Rock<3> rock;
-    rock.init(eclParser, grid.globalCell());
+    rock.init(deck, grid.globalCell());
    
     double accumulated_porevol = 0.0;
     double nabla_Pc_J = 0.0;
