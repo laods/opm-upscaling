@@ -19,54 +19,54 @@
 */
 
 /**
-  @file upscale_relpermvisc.C
-  @brief Upscales relative permeability as a funtion of watersaturation in the viscous limit.
+   @file upscale_relpermvisc.C
+   @brief Upscales relative permeability as a funtion of watersaturation in the viscous limit.
   
-  Description: 
+   Description: 
  
-  Upscaling of relative permeability (two-phase) using steady-state
-  in the viscous limit, on Eclipse corner-point geometries in shoe-box format
+   Upscaling of relative permeability (two-phase) using steady-state
+   in the viscous limit, on Eclipse corner-point geometries in shoe-box format
   
-  Reads in a lithofacies geometry in Eclipse format, reads in
-  viscosities for oil and water from command line, relpermcurve(S_w)
-  for each stone type from file, and calculates upscaled (three
-  directions) relative permeability curves as a function of Sw.
+   Reads in a lithofacies geometry in Eclipse format, reads in
+   viscosities for oil and water from command line, relpermcurve(S_w)
+   for each stone type from file, and calculates upscaled (three
+   directions) relative permeability curves as a function of Sw.
 
-  Fixed, linear and periodic boundary conditions are supported,
-  yielding 3, 9 or 9 values respectively (but only 6 significant for
-  periodic) for relative permeability at each saturation point.
+   Fixed, linear and periodic boundary conditions are supported,
+   yielding 3, 9 or 9 values respectively (but only 6 significant for
+   periodic) for relative permeability at each saturation point.
   
-  The relative permeability computation is based on 
-    - Steady-state, viscous limit. v_w/v_o = constant, === lambda_w/lamda_o = constant
-    - No gravitational effects.
-    - No capillary effects.
+   The relative permeability computation is based on 
+     - Steady-state, viscous limit. v_w/v_o = constant, === lambda_w/lamda_o = constant
+     - No gravitational effects.
+     - No capillary effects.
  
-  Steps in the code:
+   Steps in the code:
  
-  1: Process command line options.
-  2: Read Eclipse file 
-  3: Read relperm-function for each stone-type.
-  4: Tesselate the grid (Sintef code)
-  5: Generate simple statistics by looping over the cells.
-  6: Upscale fractional flow ratio vs. water saturation
-  6: Find upper and lower bounds for fractional flow ratio v_w/v_o 
-  7: Upscale single phase permeability (in order to make relative perm later)
-  8: For uniformly distributed water saturation values between upscaled Swir and Swor, 
-      a: Find fractional flow ratio corresponding to wanted upscaled water saturation
-      b: Model water saturation in each cell given fractional flow ratio
-      c: Model phase permeability in each cell given cell water saturation and inputted
-         relative permeability curves.
-      d: Upscale phase permeability
+   1: Process command line options.
+   2: Read Eclipse file 
+   3: Read relperm-function for each stone-type.
+   4: Tesselate the grid (Sintef code)
+   5: Generate simple statistics by looping over the cells.
+   6: Upscale fractional flow ratio vs. water saturation
+   6: Find upper and lower bounds for fractional flow ratio v_w/v_o 
+   7: Upscale single phase permeability (in order to make relative perm later)
+   8: For uniformly distributed water saturation values between upscaled Swir and Swor, 
+       a: Find fractional flow ratio corresponding to wanted upscaled water saturation
+       b: Model water saturation in each cell given fractional flow ratio
+       c: Model phase permeability in each cell given cell water saturation and inputted
+          relative permeability curves.
+       d: Upscale phase permeability
    9: Repeat step 8 for the oil phase. 
-  10: Print output to screen and optionally to files. 
+   10: Print output to screen and optionally to files. 
  
-  The relperm-functions must be defined in text files, with water saturation in 
-  the first column, and then relative permeability for water in column 2, and relative 
-  permeability for oil in column 3. Lines starting with -- or # are ignored.
+   The relperm-functions must be defined in text files, with water saturation in 
+   the first column, and then relative permeability for water in column 2, and relative 
+   permeability for oil in column 3. Lines starting with -- or # are ignored.
  
-  Units for (dynamic) viscosity are assumed to be in Pascal seconds. (Pa s)
-  1000 Pa s = 1 centiPoise.
- */
+   Units for (dynamic) viscosity are assumed to be in Pascal seconds. (Pa s)
+   1000 Pa s = 1 centiPoise.
+*/
 #include <config.h>
 
 #include <iostream>
@@ -98,7 +98,7 @@ using namespace std;
    options for the program, and is typically called whenever the code 
    encounters any errors in the options or in the command line syntax 
    (missing filenames etc.) 
- */
+*/
 void usage()
 {
     cout << "Usage: upscale_relpermvisc <options> <eclipsefile> rock1.txt rock2.txt... (isotropic case)" << endl <<
@@ -122,9 +122,9 @@ void usage()
         "                                go to the terminal (standard out)." << endl <<
         "-outputOil <string>          -- ditto" << endl <<
         "-interpolate <integer>       -- If supplied and > 1, the output data points will be" << endl << 
- 	"                                interpolated using monotone cubic interpolation" << endl << 
- 	"                                on a uniform grid with the specified number of" << endl << 
- 	"                                points. Suggested value: 1000." << endl <<         "" << endl <<
+        "                                interpolated using monotone cubic interpolation" << endl << 
+        "                                on a uniform grid with the specified number of" << endl << 
+        "                                points. Suggested value: 1000." << endl <<         "" << endl <<
         "-minPerm <float>             -- Minimum floating point value allowed for" << endl <<
         "                                phase permeability in computations. If set to zero," << endl <<
         "                                some models can end up singular. Default 1e-12" << endl <<
@@ -423,9 +423,9 @@ try
     /* Sanity check/fix on input for each cell:
        - Check that SATNUM are set sensibly, that is => 0 and < 1000, error if not.
        - Check that porosity is between 0 and 1, error if not.
-         Set to minPoro if zero or less than minPoro (due to pcmin/max computation)
+       Set to minPoro if zero or less than minPoro (due to pcmin/max computation)
        - Check that permeability is zero or positive. Error if negative. 
-         Set to minPerm if zero or less than minPerm.
+       Set to minPerm if zero or less than minPerm.
        - Check maximum number of SATNUM values (can be number of rock types present)
     */
     const double maxPermContrast = atof(options["maxPermContrast"].c_str());
@@ -478,7 +478,7 @@ try
             usageandexit();
         }
         if ((permxs[i] >= 0) && (permxs[i] > maxPerm)) {
-          permxs[i] = maxPerm;
+            permxs[i] = maxPerm;
         }
         if (anisotropic_input) {
             if (permys[i] < 0) {
@@ -529,7 +529,7 @@ try
     // If anisotropic input
     std::vector<MonotCubicInterpolator> Krwx, Krwy, Krwz, Krox, Kroy, Kroz;
     std::vector<string> rockTypeNames; // Placeholder for the names of the loaded rock perm files,
-                                       // to be used in final output.
+    // to be used in final output.
  
     // Handle two command line input formats, either stone.txt for all stone types
     // *or* one each. If there is only one stone type, both code blocks below are equivalent.
@@ -538,10 +538,10 @@ try
     
     if (! anisotropic_input) {
         if (varnum >= rockfileindex + stone_types) { // one .txt for each stone type in isotropic case
-	    if (varnum > rockfileindex + stone_types) {
-		cout << "Warning: More stone-functions than stone types given. "
-		     << "Ignoring the last ones." << endl;
-	    }
+            if (varnum > rockfileindex + stone_types) {
+                cout << "Warning: More stone-functions than stone types given. "
+                     << "Ignoring the last ones." << endl;
+            }
             for (int i=0 ; i < stone_types; ++i) { 
                 const char* ROCKFILENAME = vararg[rockfileindex+i];
                 // Check if rock file exists and is readable:
@@ -562,7 +562,7 @@ try
                 }
                 if (!Krwtmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << relPermCurves[waterPhaseIndex] << " of file " << ROCKFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 MonotCubicInterpolator Krotmp;
@@ -577,7 +577,7 @@ try
                 
                 if (!Krotmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << relPermCurves[oilPhaseIndex] << " of file " << ROCKFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 
@@ -615,7 +615,7 @@ try
             }
             if (!Krwtmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << relPermCurves[waterPhaseIndex] << " of file " << ROCKFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             MonotCubicInterpolator Krotmp;
@@ -629,7 +629,7 @@ try
             }
             if (!Krotmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << relPermCurves[oilPhaseIndex] << " of file " << ROCKFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             if ((Krwtmp.isStrictlyIncreasing() && Krotmp.isStrictlyIncreasing()) || (Krwtmp.isStrictlyDecreasing() && Krotmp.isStrictlyDecreasing())) {
@@ -645,12 +645,12 @@ try
             if (isMaster) cout << "Loaded rock file: " << ROCKFILENAME  
                                << ", for all stone types" << endl; 
         }
-	else { 
+        else { 
             cerr << "Error:  Wrong number of stone-functions provided. " << endl 
-		 << "Should be either one or greater or equal "
-		 << "to the number of stone types in the model. " << endl
-		 << "(In the anisotropic case, there should be two functions "
-		 << "(water and oil) for each stone type)" << endl
+                 << "Should be either one or greater or equal "
+                 << "to the number of stone types in the model. " << endl
+                 << "(In the anisotropic case, there should be two functions "
+                 << "(water and oil) for each stone type)" << endl
                  << "Note that all input arguments after eclipse file are " << endl  
                  << "interpreted as input functions." << endl; 
             return 1; 
@@ -661,10 +661,10 @@ try
         cout << "varnum: " << varnum << endl;
         cout << "rockfileindex: " << rockfileindex << endl;
         if (varnum >= rockfileindex + 2*stone_types) { // two .txt for each stone type in anisotropic case
-	    if (varnum > rockfileindex + stone_types) {
-		cout << "Warning: More stone-functions than stone types given. "
-		     << "Ignoring the last ones." << endl;
-	    }
+            if (varnum > rockfileindex + stone_types) {
+                cout << "Warning: More stone-functions than stone types given. "
+                     << "Ignoring the last ones." << endl;
+            }
             int rockidx=0;
             for (int i=0 ; i < 2*stone_types; i+=2) {  
                 rockidx++;
@@ -697,17 +697,17 @@ try
                 }
                 if (!Krwxtmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << 3 << " of file " << WATERFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 if (!Krwytmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << 4 << " of file " << WATERFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 if (!Krwztmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << 5 << " of file " << WATERFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 try {
@@ -722,17 +722,17 @@ try
                 }
                 if (!Kroxtmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << 3 << " of file " << OILFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 if (!Kroytmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << 4 << " of file " << OILFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 if (!Kroztmp.isStrictlyMonotone()) {
                     if (isMaster) cerr << "Error: Data in column " << 5 << " of file " << OILFILENAME << endl <<
-                        "       was not strictly monotone. Exiting." << endl;
+                                      "       was not strictly monotone. Exiting." << endl;
                     usageandexit();
                 }
                 Krwx.push_back(Krwxtmp); Krwy.push_back(Krwytmp); Krwz.push_back(Krwztmp); 
@@ -772,17 +772,17 @@ try
             }
             if (!Krwxtmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << 3 << " of file " << WATERFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             if (!Krwytmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << 4 << " of file " << WATERFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             if (!Krwztmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << 5 << " of file " << WATERFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             MonotCubicInterpolator Kroxtmp, Kroytmp, Kroztmp;
@@ -798,17 +798,17 @@ try
             }
             if (!Kroxtmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << 3 << " of file " << OILFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             if (!Kroytmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << 4 << " of file " << OILFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             if (!Kroztmp.isStrictlyMonotone()) {
                 if (isMaster) cerr << "Error: Data in column " << 5 << " of file " << OILFILENAME << endl <<
-                    "       was not strictly monotone. Exiting." << endl;
+                                  "       was not strictly monotone. Exiting." << endl;
                 usageandexit();
             }
             for (int i=0 ; i < 2*stone_types; i+=2) {  
@@ -823,10 +823,10 @@ try
         }
         else { 
             cerr << "Error:  Wrong number of stone-functions provided. " << endl 
-		 << "Should be either one or greater or equal "
-		 << "to the number of stone types in the model. " << endl
-		 << "(In the anisotropic case, there should be two functions "
-		 << "(water and oil) for each stone type)" << endl
+                 << "Should be either one or greater or equal "
+                 << "to the number of stone types in the model. " << endl
+                 << "(In the anisotropic case, there should be two functions "
+                 << "(water and oil) for each stone type)" << endl
                  << "Note that all input arguments after eclipse file are " << endl  
                  << "interpreted as input functions." << endl; 
             return 1; 
@@ -937,20 +937,20 @@ try
     }
  
 
-   // Sometimes, if Swmax=1 or Swir=0 in the input tables, the upscaled 
-   // values can be a little bit larger (within machine precision) and
-   // the check below fails. Hence, check if these values are within the 
-   // the [0 1] interval within some precision (use linsolver_precision)
-   if (Swor > 1.0 && Swor - linsolver_tolerance < 1.0) {
-       Swor = 1.0;
-   }
-   if (Swir < 0.0 && Swir + linsolver_tolerance > 0.0) {
-       Swir = 0.0;
-   }
-   if (Swir < 0.0 || Swir > 1.0 || Swor < 0.0 || Swor > 1.0) {
-       if (isMaster) cerr << "ERROR: Swir/Swor unsensible. Check your input. Exiting";
-       usageandexit();
-   }      
+    // Sometimes, if Swmax=1 or Swir=0 in the input tables, the upscaled 
+    // values can be a little bit larger (within machine precision) and
+    // the check below fails. Hence, check if these values are within the 
+    // the [0 1] interval within some precision (use linsolver_precision)
+    if (Swor > 1.0 && Swor - linsolver_tolerance < 1.0) {
+        Swor = 1.0;
+    }
+    if (Swir < 0.0 && Swir + linsolver_tolerance > 0.0) {
+        Swir = 0.0;
+    }
+    if (Swir < 0.0 || Swir > 1.0 || Swor < 0.0 || Swor > 1.0) {
+        if (isMaster) cerr << "ERROR: Swir/Swor unsensible. Check your input. Exiting";
+        usageandexit();
+    }      
 
     /*********************************************************************** 
      * Step 6 
@@ -978,10 +978,10 @@ try
         MonotCubicInterpolator waterCurve, oilCurve, 
             waterCurveY, oilCurveY, waterCurveYInv, oilCurveYInv,
             waterCurveZ, oilCurveZ, waterCurveZInv, oilCurveZInv; 
-       // NOTE: This is a huge hack for anisotropic_input, we only look at
-       // x-directions, and hope this is good enough for establishing
-       // which fracflows to choose. The only side effect is probably slightly 
-       // variations in distance between each saturation point.
+        // NOTE: This is a huge hack for anisotropic_input, we only look at
+        // x-directions, and hope this is good enough for establishing
+        // which fracflows to choose. The only side effect is probably slightly 
+        // variations in distance between each saturation point.
         if (! anisotropic_input) {
             waterCurve = MonotCubicInterpolator(Krw[stone_idx]);
             oilCurve = MonotCubicInterpolator(Kro[stone_idx]); 
@@ -1188,18 +1188,18 @@ try
         invert(permTensorInv);
     }
 
-   /*****************************************************************
-    * Step 8 and 9  
-    * (step 8 is for water, 9 is for oil, the code is identical, we just 
-    * swap some variables) 
-    * 
-    * For uniformly distributed water saturation values between upscaled Swir and Swor, 
-    *    a: Find fractional flow ratio corresponding to wanted upscaled water saturation
-    *    b: Model water saturation in each cell given fractional flow ratio
-    *    c: Model phase permeability in each cell given cell water saturation and inputted
-    *       relative permeability curves.
-    *    d: Upscale phase permeability
-    */
+    /*****************************************************************
+     * Step 8 and 9  
+     * (step 8 is for water, 9 is for oil, the code is identical, we just 
+     * swap some variables) 
+     * 
+     * For uniformly distributed water saturation values between upscaled Swir and Swor, 
+     *    a: Find fractional flow ratio corresponding to wanted upscaled water saturation
+     *    b: Model water saturation in each cell given fractional flow ratio
+     *    c: Model phase permeability in each cell given cell water saturation and inputted
+     *       relative permeability curves.
+     *    d: Upscale phase permeability
+     */
 
     vector<double> WaterSaturation;
     
@@ -1492,208 +1492,208 @@ try
         }
     }
 
-   /*********************************************************************************
-    * Step 10
-    *
-    * Output results to stdout and optionally to file. Note, we only output to
-    * file if the '-outputWater'-option and/or '-outputOil' has been set, as this option is an
-    * empty string by default.
-    */
+    /*********************************************************************************
+     * Step 10
+     *
+     * Output results to stdout and optionally to file. Note, we only output to
+     * file if the '-outputWater'-option and/or '-outputOil' has been set, as this option is an
+     * empty string by default.
+     */
    
-   if (isMaster) {
+    if (isMaster) {
 
-       // If no data computed, we do not have more to do:
-       if (WaterSaturation.size() == 0) {
-           return(1); // non-zero return value, this means something wrong with input data.
-       }
+        // If no data computed, we do not have more to do:
+        if (WaterSaturation.size() == 0) {
+            return(1); // non-zero return value, this means something wrong with input data.
+        }
    
-       stringstream outheadtmp;
-       stringstream outwatertmp;
-       stringstream outoiltmp;
+        stringstream outheadtmp;
+        stringstream outwatertmp;
+        stringstream outoiltmp;
        
-       // Print a table of all computed values:
-       outheadtmp << "######################################################################" << endl;
-       outheadtmp << "# Results from upscaling relative permeability."<< endl;
-       outheadtmp << "#" << endl;
-       time_t now = std::time(NULL);
-       outheadtmp << "# Finished: " << asctime(localtime(&now));
+        // Print a table of all computed values:
+        outheadtmp << "######################################################################" << endl;
+        outheadtmp << "# Results from upscaling relative permeability."<< endl;
+        outheadtmp << "#" << endl;
+        time_t now = std::time(NULL);
+        outheadtmp << "# Finished: " << asctime(localtime(&now));
        
-       utsname hostname;   uname(&hostname);
-       outheadtmp << "# Hostname: " << hostname.nodename << endl;
+        utsname hostname;   uname(&hostname);
+        outheadtmp << "# Hostname: " << hostname.nodename << endl;
        
-       outheadtmp << "#" << endl;
-       outheadtmp << "# Eclipse file: " << ECLIPSEFILENAME << endl;
-       outheadtmp << "#        cells: " << tesselatedCells << endl;
-       outheadtmp << "#  Pore volume: " << poreVolume << endl;
-       outheadtmp << "#       volume: " << volume << endl;
-       outheadtmp << "#     Porosity: " << poreVolume/volume << endl;
-       outheadtmp << "#" << endl;
-       for (int i=0; i < stone_types ; ++i) {
-           if (! anisotropic_input) {
-               outheadtmp << "# Stone " << i+1 << ": " << rockTypeNames[i] << " (" << Krw[i].getSize() << " points)" <<  endl;
-           }
-           else {
-               outheadtmp << "# Stone " << i+1 << ": " << rockTypeNames[i] << " (" << Krwx[i].getSize() << " points)" <<  endl;
-           }
-       }
-       outheadtmp << "#" << endl;
-       outheadtmp << "# Timings:   Tesselation: " << timeused_tesselation << " secs" << endl;
-       outheadtmp << "#              Upscaling: " << timeused_upscale_wallclock << " secs";
+        outheadtmp << "#" << endl;
+        outheadtmp << "# Eclipse file: " << ECLIPSEFILENAME << endl;
+        outheadtmp << "#        cells: " << tesselatedCells << endl;
+        outheadtmp << "#  Pore volume: " << poreVolume << endl;
+        outheadtmp << "#       volume: " << volume << endl;
+        outheadtmp << "#     Porosity: " << poreVolume/volume << endl;
+        outheadtmp << "#" << endl;
+        for (int i=0; i < stone_types ; ++i) {
+            if (! anisotropic_input) {
+                outheadtmp << "# Stone " << i+1 << ": " << rockTypeNames[i] << " (" << Krw[i].getSize() << " points)" <<  endl;
+            }
+            else {
+                outheadtmp << "# Stone " << i+1 << ": " << rockTypeNames[i] << " (" << Krwx[i].getSize() << " points)" <<  endl;
+            }
+        }
+        outheadtmp << "#" << endl;
+        outheadtmp << "# Timings:   Tesselation: " << timeused_tesselation << " secs" << endl;
+        outheadtmp << "#              Upscaling: " << timeused_upscale_wallclock << " secs";
 #ifdef HAVE_MPI
-       outheadtmp << " (wallclock time)" << endl;
-       outheadtmp << "#                         " << avg_upscaling_time_pr_point << " secs pr. saturation point" << endl;
-       outheadtmp << "#              MPI-nodes: " << mpi_nodecount << endl;
+        outheadtmp << " (wallclock time)" << endl;
+        outheadtmp << "#                         " << avg_upscaling_time_pr_point << " secs pr. saturation point" << endl;
+        outheadtmp << "#              MPI-nodes: " << mpi_nodecount << endl;
 
-       // Single phase upscaling time is included here, in possibly a hairy way.
-       double speedup = (avg_upscaling_time_pr_point * (2*points + 1) + timeused_tesselation)/(timeused_upscale_wallclock + avg_upscaling_time_pr_point + timeused_tesselation);
-       outheadtmp << "#                Speedup: " << speedup << ", efficiency: " << speedup/mpi_nodecount << endl;
+        // Single phase upscaling time is included here, in possibly a hairy way.
+        double speedup = (avg_upscaling_time_pr_point * (2*points + 1) + timeused_tesselation)/(timeused_upscale_wallclock + avg_upscaling_time_pr_point + timeused_tesselation);
+        outheadtmp << "#                Speedup: " << speedup << ", efficiency: " << speedup/mpi_nodecount << endl;
 #else
-       outheadtmp << ", " << avg_upscaling_time_pr_point << " secs avg for " << (2*points) << " runs" << endl;
+        outheadtmp << ", " << avg_upscaling_time_pr_point << " secs avg for " << (2*points) << " runs" << endl;
 #endif
-       outheadtmp << "# " << endl;
-       outheadtmp << "# Options used:" << endl;
-       outheadtmp << "#     Boundary conditions: ";
-       if (isFixed)    outheadtmp << "Fixed (no-flow)" << endl;
-       if (isPeriodic) outheadtmp << "Periodic" << endl;
-       if (isLinear)   outheadtmp << "Linear" << endl;
-       outheadtmp << "#                  points: " << options["points"] <<  endl;
-       outheadtmp << "#         maxPermContrast: " << options["maxPermContrast"] << endl;
-       outheadtmp << "#                 minPerm: " << options["minPerm"] << endl;
-       outheadtmp << "#                 minPoro: " << options["minPoro"] << endl;      
-       outheadtmp << "#          waterViscosity: " << options["waterViscosity"] << " Pa s" << endl;
-       outheadtmp << "#            oilViscosity: " << options["oilViscosity"] << " Pa s" << endl;
-       if (doInterpolate) { 
-           outheadtmp << "#             interpolate: " << options["interpolate"] << " points" << endl; 
-       }
-       outheadtmp << "# " << endl;
-       outheadtmp << "# Single phase permeability" << endl;
-       outheadtmp << "#  |Kxx  Kxy  Kxz| = " << permTensor(0,0) << "  " << permTensor(0,1) << "  " << permTensor(0,2) << endl;
-       outheadtmp << "#  |Kyx  Kyy  Kyz| = " << permTensor(1,0) << "  " << permTensor(1,1) << "  " << permTensor(1,2) << endl;
-       outheadtmp << "#  |Kzx  Kzy  Kzz| = " << permTensor(2,0) << "  " << permTensor(2,1) << "  " << permTensor(2,2) << endl;
-       outheadtmp << "# " << endl;
-       if (doInterpolate) { 
-           outheadtmp << "# NB: Data points shown are interpolated." << endl; 
-       } outheadtmp << "######################################################################" << endl;
+        outheadtmp << "# " << endl;
+        outheadtmp << "# Options used:" << endl;
+        outheadtmp << "#     Boundary conditions: ";
+        if (isFixed)    outheadtmp << "Fixed (no-flow)" << endl;
+        if (isPeriodic) outheadtmp << "Periodic" << endl;
+        if (isLinear)   outheadtmp << "Linear" << endl;
+        outheadtmp << "#                  points: " << options["points"] <<  endl;
+        outheadtmp << "#         maxPermContrast: " << options["maxPermContrast"] << endl;
+        outheadtmp << "#                 minPerm: " << options["minPerm"] << endl;
+        outheadtmp << "#                 minPoro: " << options["minPoro"] << endl;      
+        outheadtmp << "#          waterViscosity: " << options["waterViscosity"] << " Pa s" << endl;
+        outheadtmp << "#            oilViscosity: " << options["oilViscosity"] << " Pa s" << endl;
+        if (doInterpolate) { 
+            outheadtmp << "#             interpolate: " << options["interpolate"] << " points" << endl; 
+        }
+        outheadtmp << "# " << endl;
+        outheadtmp << "# Single phase permeability" << endl;
+        outheadtmp << "#  |Kxx  Kxy  Kxz| = " << permTensor(0,0) << "  " << permTensor(0,1) << "  " << permTensor(0,2) << endl;
+        outheadtmp << "#  |Kyx  Kyy  Kyz| = " << permTensor(1,0) << "  " << permTensor(1,1) << "  " << permTensor(1,2) << endl;
+        outheadtmp << "#  |Kzx  Kzy  Kzz| = " << permTensor(2,0) << "  " << permTensor(2,1) << "  " << permTensor(2,2) << endl;
+        outheadtmp << "# " << endl;
+        if (doInterpolate) { 
+            outheadtmp << "# NB: Data points shown are interpolated." << endl; 
+        } outheadtmp << "######################################################################" << endl;
        
-       if (isFixed) {
-           outwatertmp << "#     v_w/v_o          Sw          Krwxx         Krwyy         Krwzz" << endl;
-           outoiltmp   << "#     v_w/v_o          Sw          Kroxx         Kroyy         Krozz" << endl;
-       }
-       else if (isLinear) {
-           outwatertmp << "#     v_w/v_o          Sw          Krwxx         Krwyy         Krwzz         Krwyz         Krwxz         Krwxy         Krwzy         Krwzx         Krwyx" << endl;
-           outoiltmp   << "#     v_w/v_o          Sw          Kroxx         Kroyy         Krozz         Kroyz         Kroxz         Kroxy         Krozy         Krozx         Kroyx" << endl;
-       }
-       else if (isPeriodic) {
-           outwatertmp << "#     v_w/v_o          Sw          Krwxx         Krwyy         Krwzz         Krwyz         Krwxz         Krwxy         Krwzy         Krwzx         Krwyx" << endl;
-           outoiltmp   << "#     v_w/v_o          Sw          Kroxx         Kroyy         Krozz         Kroyz         Kroxz         Kroxy         Krozy         Krozx         Kroyx" << endl;
-       }
+        if (isFixed) {
+            outwatertmp << "#     v_w/v_o          Sw          Krwxx         Krwyy         Krwzz" << endl;
+            outoiltmp   << "#     v_w/v_o          Sw          Kroxx         Kroyy         Krozz" << endl;
+        }
+        else if (isLinear) {
+            outwatertmp << "#     v_w/v_o          Sw          Krwxx         Krwyy         Krwzz         Krwyz         Krwxz         Krwxy         Krwzy         Krwzx         Krwyx" << endl;
+            outoiltmp   << "#     v_w/v_o          Sw          Kroxx         Kroyy         Krozz         Kroyz         Kroxz         Kroxy         Krozy         Krozx         Kroyx" << endl;
+        }
+        else if (isPeriodic) {
+            outwatertmp << "#     v_w/v_o          Sw          Krwxx         Krwyy         Krwzz         Krwyz         Krwxz         Krwxy         Krwzy         Krwzx         Krwyx" << endl;
+            outoiltmp   << "#     v_w/v_o          Sw          Kroxx         Kroyy         Krozz         Kroyz         Kroxz         Kroxy         Krozy         Krozx         Kroyx" << endl;
+        }
        
-       // If user wants interpolated output, do monotone cubic interpolation 
-       // by modifying the data vectors that are to be printed 
-       if (doInterpolate) {
-           // Find min and max for saturation values 
-           double satmin = +DBL_MAX;
-           double satmax = -DBL_MAX;
-           for (unsigned int i = 0; i < WaterSaturation.size(); ++i) { 
-               if (WaterSaturation[i] < satmin) { 
-                   satmin = WaterSaturation[i]; 
-               } 
-               if (WaterSaturation[i] > satmax) { 
-                   satmax = WaterSaturation[i]; 
-               } 
-           } 
+        // If user wants interpolated output, do monotone cubic interpolation 
+        // by modifying the data vectors that are to be printed 
+        if (doInterpolate) {
+            // Find min and max for saturation values 
+            double satmin = +DBL_MAX;
+            double satmax = -DBL_MAX;
+            for (unsigned int i = 0; i < WaterSaturation.size(); ++i) { 
+                if (WaterSaturation[i] < satmin) { 
+                    satmin = WaterSaturation[i]; 
+                } 
+                if (WaterSaturation[i] > satmax) { 
+                    satmax = WaterSaturation[i]; 
+                } 
+            } 
 
-           // Make uniform grid in saturation axis (for both water and oil)
-           vector<double> SatvaluesInterp, fracFlowRatioPointsInterp;
-           for (int i = 0; i < interpolationPoints; ++i) { 
-               SatvaluesInterp.push_back(satmin + ((double)i)/((double)interpolationPoints-1)*(satmax-satmin)); 
-               fracFlowRatioPointsInterp.push_back(WaterSaturationVsFractionalFlow.evaluate(SatvaluesInterp[i]));
-           } 
+            // Make uniform grid in saturation axis (for both water and oil)
+            vector<double> SatvaluesInterp, fracFlowRatioPointsInterp;
+            for (int i = 0; i < interpolationPoints; ++i) { 
+                SatvaluesInterp.push_back(satmin + ((double)i)/((double)interpolationPoints-1)*(satmax-satmin)); 
+                fracFlowRatioPointsInterp.push_back(WaterSaturationVsFractionalFlow.evaluate(SatvaluesInterp[i]));
+            } 
 
-           // Now fracflowratio and computed relperm-values must be viewed as functions 
-           // of saturation, and then interpolated on the uniform saturation grid. 
+            // Now fracflowratio and computed relperm-values must be viewed as functions 
+            // of saturation, and then interpolated on the uniform saturation grid. 
            
-           // Now overwrite existing FlowRatioValues and relperm-data with interpolated data: 
-           MonotCubicInterpolator FracFlowRatioValuesVsSaturationWater, FracFlowRatioValuesVsSaturationOil;
+            // Now overwrite existing FlowRatioValues and relperm-data with interpolated data: 
+            MonotCubicInterpolator FracFlowRatioValuesVsSaturationWater, FracFlowRatioValuesVsSaturationOil;
            
-           for (int voigtIdx = 0; voigtIdx < tensorElementCount; ++voigtIdx) { 
-               MonotCubicInterpolator RelPermWaterVsSaturation(WaterSaturation, RelPermValues[waterPhaseIndex][voigtIdx]); 
-               MonotCubicInterpolator RelPermOilVsSaturation(  WaterSaturation, RelPermValues[oilPhaseIndex][voigtIdx]); 
-               RelPermValues[waterPhaseIndex][voigtIdx].clear(); 
-               RelPermValues[oilPhaseIndex][voigtIdx].clear();
-               for (int i=0; i < interpolationPoints; ++i) { 
-                   RelPermValues[waterPhaseIndex][voigtIdx].push_back(RelPermWaterVsSaturation.evaluate(SatvaluesInterp[i])); 
-                   RelPermValues[oilPhaseIndex][voigtIdx].push_back(RelPermOilVsSaturation.evaluate(SatvaluesInterp[i]));                
-               } 
-           } 
+            for (int voigtIdx = 0; voigtIdx < tensorElementCount; ++voigtIdx) { 
+                MonotCubicInterpolator RelPermWaterVsSaturation(WaterSaturation, RelPermValues[waterPhaseIndex][voigtIdx]); 
+                MonotCubicInterpolator RelPermOilVsSaturation(  WaterSaturation, RelPermValues[oilPhaseIndex][voigtIdx]); 
+                RelPermValues[waterPhaseIndex][voigtIdx].clear(); 
+                RelPermValues[oilPhaseIndex][voigtIdx].clear();
+                for (int i=0; i < interpolationPoints; ++i) { 
+                    RelPermValues[waterPhaseIndex][voigtIdx].push_back(RelPermWaterVsSaturation.evaluate(SatvaluesInterp[i])); 
+                    RelPermValues[oilPhaseIndex][voigtIdx].push_back(RelPermOilVsSaturation.evaluate(SatvaluesInterp[i]));                
+                } 
+            } 
            
 
-           // Now also overwrite Satvalues and fracFlowRatioPoints
-           WaterSaturation.clear(); 
-           WaterSaturation = SatvaluesInterp; 
+            // Now also overwrite Satvalues and fracFlowRatioPoints
+            WaterSaturation.clear(); 
+            WaterSaturation = SatvaluesInterp; 
  
-           fracFlowRatioPoints.clear();
-           fracFlowRatioPoints = fracFlowRatioPointsInterp;
-       }
+            fracFlowRatioPoints.clear();
+            fracFlowRatioPoints = fracFlowRatioPointsInterp;
+        }
        
        
-       for (unsigned int i=0; i < WaterSaturation.size(); ++i) {
-           outwatertmp << showpoint << setw(14) << fracFlowRatioPoints[i];
-           outwatertmp << showpoint << setw(14) << WaterSaturation[i];
+        for (unsigned int i=0; i < WaterSaturation.size(); ++i) {
+            outwatertmp << showpoint << setw(14) << fracFlowRatioPoints[i];
+            outwatertmp << showpoint << setw(14) << WaterSaturation[i];
            
-           for (int voigtIdx=0; voigtIdx < tensorElementCount; ++voigtIdx) {
-               outwatertmp << showpoint << setw(14)  << RelPermValues[waterPhaseIndex][voigtIdx][i];              
-           }
-           outwatertmp << endl;
+            for (int voigtIdx=0; voigtIdx < tensorElementCount; ++voigtIdx) {
+                outwatertmp << showpoint << setw(14)  << RelPermValues[waterPhaseIndex][voigtIdx][i];              
+            }
+            outwatertmp << endl;
            
-           // Ignore further output if we have reached no water saturation
-           if (WaterSaturation[i] == 0.0) break; /* maybe == on floats will fail at some point */ 
-       }
+            // Ignore further output if we have reached no water saturation
+            if (WaterSaturation[i] == 0.0) break; /* maybe == on floats will fail at some point */ 
+        }
        
-       for (unsigned int i=0; i < WaterSaturation.size(); ++i) {
-           outoiltmp << showpoint << setw(14) << fracFlowRatioPoints[i];
-           outoiltmp << showpoint << setw(14) << WaterSaturation[i];     
+        for (unsigned int i=0; i < WaterSaturation.size(); ++i) {
+            outoiltmp << showpoint << setw(14) << fracFlowRatioPoints[i];
+            outoiltmp << showpoint << setw(14) << WaterSaturation[i];     
            
-           for (int voigtIdx=0; voigtIdx < tensorElementCount; ++voigtIdx) {
-               outoiltmp << showpoint << setw(14) << RelPermValues[oilPhaseIndex][voigtIdx][i];              
-           }
-           outoiltmp << endl;
+            for (int voigtIdx=0; voigtIdx < tensorElementCount; ++voigtIdx) {
+                outoiltmp << showpoint << setw(14) << RelPermValues[oilPhaseIndex][voigtIdx][i];              
+            }
+            outoiltmp << endl;
            
-           // Ignore further output if we have reached no water saturation
-           if (WaterSaturation[i] == 0.0) break; /* maybe == on floats will fail at some point */ 
-       }
+            // Ignore further output if we have reached no water saturation
+            if (WaterSaturation[i] == 0.0) break; /* maybe == on floats will fail at some point */ 
+        }
        
-       cout << outheadtmp.str();
-       cout << "# Relperm curve for water: " << endl;
-       cout << outwatertmp.str();
-       cout << "####################################################################" << endl;
-       cout << "# Relperm curve for oil: " << endl;
-       cout << outoiltmp.str();
+        cout << outheadtmp.str();
+        cout << "# Relperm curve for water: " << endl;
+        cout << outwatertmp.str();
+        cout << "####################################################################" << endl;
+        cout << "# Relperm curve for oil: " << endl;
+        cout << outoiltmp.str();
        
        
-       if (options["outputWater"] != "") {
-           cout << "Writing (water) results to " << options["outputWater"] << endl;
-           ofstream outfile;
-           outfile.open(options["outputWater"].c_str(), ios::out | ios::trunc);
-           outfile << outheadtmp.str();
-           outfile << outwatertmp.str();
-           outfile.close();      
-       }
+        if (options["outputWater"] != "") {
+            cout << "Writing (water) results to " << options["outputWater"] << endl;
+            ofstream outfile;
+            outfile.open(options["outputWater"].c_str(), ios::out | ios::trunc);
+            outfile << outheadtmp.str();
+            outfile << outwatertmp.str();
+            outfile.close();      
+        }
        
-       if (options["outputOil"] != "") {
-           cout << "Writing (oil) results to " << options["outputOil"] << endl;
-           ofstream outfile;
-           outfile.open(options["outputOil"].c_str(), ios::out | ios::trunc);
-           outfile << outheadtmp.str();
-           outfile << outoiltmp.str();
-           outfile.close();      
-       }
-   }
+        if (options["outputOil"] != "") {
+            cout << "Writing (oil) results to " << options["outputOil"] << endl;
+            ofstream outfile;
+            outfile.open(options["outputOil"].c_str(), ios::out | ios::trunc);
+            outfile << outheadtmp.str();
+            outfile << outoiltmp.str();
+            outfile.close();      
+        }
+    }
 
-   return 0;
-}
-catch (const std::exception &e) {
-    std::cerr << "Program threw an exception: " << e.what() << "\n";
-    throw;
-}
+    return 0;
+ }
+ catch (const std::exception &e) {
+     std::cerr << "Program threw an exception: " << e.what() << "\n";
+     throw;
+ }
 
