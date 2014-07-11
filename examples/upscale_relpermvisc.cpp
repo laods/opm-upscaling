@@ -533,8 +533,15 @@ try
  
     // Handle two command line input formats, either stone.txt for all stone types
     // *or* one each. If there is only one stone type, both code blocks below are equivalent.
+    // It is possible to provide more stone-functions than stone types, in which the last files
+    // will be ignored.
+    
     if (! anisotropic_input) {
-        if (varnum == rockfileindex + stone_types) { // one .txt for each stone type in isotropic case
+        if (varnum >= rockfileindex + stone_types) { // one .txt for each stone type in isotropic case
+	    if (varnum > rockfileindex + stone_types) {
+		cout << "Warning: More stone-functions than stone types given. "
+		     << "Ignoring the last ones." << endl;
+	    }
             for (int i=0 ; i < stone_types; ++i) { 
                 const char* ROCKFILENAME = vararg[rockfileindex+i];
                 // Check if rock file exists and is readable:
@@ -638,10 +645,14 @@ try
             if (isMaster) cout << "Loaded rock file: " << ROCKFILENAME  
                                << ", for all stone types" << endl; 
         }
-        else { 
+	else { 
             cerr << "Error:  Wrong number of stone-functions provided. " << endl 
+		 << "Should be either one or greater or equal "
+		 << "to the number of stone types in the model. " << endl
+		 << "(In the anisotropic case, there should be two functions "
+		 << "(water and oil) for each stone type)" << endl
                  << "Note that all input arguments after eclipse file are " << endl  
-                 << "interpreted as stone functions." << endl; 
+                 << "interpreted as input functions." << endl; 
             return 1; 
         } 
     }
@@ -649,7 +660,11 @@ try
         cout << "rock types: " << stone_types << endl;
         cout << "varnum: " << varnum << endl;
         cout << "rockfileindex: " << rockfileindex << endl;
-        if (varnum == rockfileindex + 2*stone_types) { // two .txt for each stone type in anisotropic case
+        if (varnum >= rockfileindex + 2*stone_types) { // two .txt for each stone type in anisotropic case
+	    if (varnum > rockfileindex + stone_types) {
+		cout << "Warning: More stone-functions than stone types given. "
+		     << "Ignoring the last ones." << endl;
+	    }
             int rockidx=0;
             for (int i=0 ; i < 2*stone_types; i+=2) {  
                 rockidx++;
@@ -808,6 +823,10 @@ try
         }
         else { 
             cerr << "Error:  Wrong number of stone-functions provided. " << endl 
+		 << "Should be either one or greater or equal "
+		 << "to the number of stone types in the model. " << endl
+		 << "(In the anisotropic case, there should be two functions "
+		 << "(water and oil) for each stone type)" << endl
                  << "Note that all input arguments after eclipse file are " << endl  
                  << "interpreted as input functions." << endl; 
             return 1; 

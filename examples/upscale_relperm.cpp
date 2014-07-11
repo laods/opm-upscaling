@@ -580,8 +580,14 @@ try
 
    // Handle two command line input formats, either one J-function for all stone types
    // or one each. If there is only one stone type, both code blocks below are equivalent.
+   // It is possible to provide more stone-functions than stone types, in which the last files
+   // will be ignored.
    
-   if (varnum == rockfileindex + stone_types) {
+   if (varnum >= rockfileindex + stone_types) {
+      if (varnum > rockfileindex + stone_types) {
+	  cout << "Warning: More stone-functions than stone types given. " 
+	       << "Ignoring the last ones." << endl;
+      }
       for (int i=0 ; i < stone_types; ++i) {
          const char* ROCKFILENAME = vararg[rockfileindex+i];
          // Check if rock file exists and is readable:
@@ -725,7 +731,11 @@ try
        }
    }
    else {
-       if (isMaster) cerr << "Error:  Wrong number of stone-functions provided. " << endl;
+       if (isMaster) {
+	   cerr << "Error: Wrong number of stone-functions provided. " << endl
+		<< "Should be either one or greater or equal "
+		<< "to the number of stone types in the model. " << endl;
+       }
        usageandexit();
    }
    
@@ -733,7 +743,7 @@ try
    const bool doEclipseCheck = (options["doEclipseCheck"] == "true");
    double critRelpThresh = atof(options["critRelpermThresh"].c_str());
    int numberofrockstocheck;
-   if (varnum == rockfileindex + stone_types) numberofrockstocheck = stone_types;
+   if (varnum >= rockfileindex + stone_types) numberofrockstocheck = stone_types;
    else numberofrockstocheck = 1;
    if (doEclipseCheck) {
        for (int i=0 ; i < numberofrockstocheck; ++i) {
